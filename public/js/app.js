@@ -1,0 +1,584 @@
+document.addEventListener('alpine:init', () => {
+  Alpine.data('app', () => ({
+    // Connection
+    connected: false,
+    connecting: false,
+    connectionError: '',
+    origin: '',
+    apiKey: '',
+    apiSecret: '',
+    showSecret: false,
+    tenantName: '',
+    rememberConnection: false,
+
+    // WebSocket
+    ws: null,
+    reconnectAttempts: 0,
+    reconnecting: false,
+    maxReconnectAttempts: 10,
+
+    // Tailing
+    tailing: false,
+    paused: false,
+    logs: [],
+    _logIdCounter: 0,
+
+    // Filters
+    activeSources: ['am-everything', 'idm-everything'],
+    availableSources: [
+      { id: 'am-everything', label: 'AM Everything' },
+      { id: 'am-access', label: 'AM Access' },
+      { id: 'am-authentication', label: 'AM Authentication' },
+      { id: 'am-config', label: 'AM Config' },
+      { id: 'am-core', label: 'AM Core' },
+      { id: 'am-activity', label: 'AM Activity' },
+      { id: 'idm-everything', label: 'IDM Everything' },
+      { id: 'idm-access', label: 'IDM Access' },
+      { id: 'idm-activity', label: 'IDM Activity' },
+      { id: 'idm-authentication', label: 'IDM Authentication' },
+      { id: 'idm-config', label: 'IDM Config' },
+      { id: 'idm-core', label: 'IDM Core' },
+      { id: 'idm-sync', label: 'IDM Sync' }
+    ],
+    logLevelFilter: 'ALL',
+    textSearch: '',
+    transactionIdFilter: '',
+    noiseFilter: true,
+    categoryPreset: '',
+
+    // Settings
+    showSettings: false,
+    pollFrequency: 10,
+    maxLogBuffer: 5000,
+    autoScroll: true,
+
+    // Custom headers (hidden feature)
+    showCustomHeaders: false,
+    customHeaders: [],
+    _versionClicks: 0,
+    _versionClickTimer: null,
+
+    // Export
+    showExport: false,
+    exportFormat: 'json',
+    exportScope: 'filtered',
+
+    // History
+    showHistory: false,
+    historyStart: '',
+    historyEnd: '',
+    historyTxnId: '',
+    historyQueryFilter: '',
+    historyLoading: false,
+    historyError: '',
+    historyNextCookie: null,
+
+    // Rate limit
+    rateLimit: { limit: 0, remaining: 0, resetTime: 0 },
+
+    // Category data (loaded from server)
+    _categories: {},
+    _noiseLoggers: [],
+
+    async init() {
+      // Load config defaults from server
+      try {
+        const res = await fetch('/api/config');
+        const config = await res.json();
+        this.origin = config.defaultOrigin || '';
+        this.apiKey = config.defaultApiKey || '';
+        this.apiSecret = config.defaultApiSecret || '';
+        this.pollFrequency = config.pollFrequency || 10;
+        this.maxLogBuffer = config.maxLogBuffer || 5000;
+      } catch (e) {
+        console.error('Failed to load config:', e);
+      }
+
+      // Restore remembered connection (overrides .env defaults if saved)
+      try {
+        const saved = localStorage.getItem('pingaic-connection');
+        if (saved) {
+          const conn = JSON.parse(saved);
+          this.origin = conn.origin || this.origin;
+          this.apiKey = conn.apiKey || this.apiKey;
+          this.rememberConnection = true;
+        }
+      } catch {}
+
+      // Load category/noise filter data
+      try {
+        const res = await fetch('/api/categories');
+        const data = await res.json();
+        if (data.noiseFilters) {
+          const all = [];
+          for (const group of Object.values(data.noiseFilters.am || {})) {
+            all.push(...group);
+          }
+          for (const group of Object.values(data.noiseFilters.idm || {})) {
+            all.push(...group);
+          }
+          this._noiseLoggers = all;
+        }
+        if (data.categories) {
+          this._categories = data.categories;
+        }
+      } catch (e) {
+        console.error('Failed to load categories:', e);
+      }
+
+      // Restore custom headers from sessionStorage
+      try {
+        const saved = sessionStorage.getItem('pingaic-custom-headers');
+        if (saved) {
+          this.customHeaders = JSON.parse(saved);
+          this.showCustomHeaders = this.customHeaders.length > 0;
+        }
+      } catch {}
+
+      // Watch poll frequency changes and restart tail
+      this.$watch('pollFrequency', () => {
+        if (this.tailing) this.restartTail();
+      });
+    },
+
+    get filteredLogs() {
+      let result = this.logs;
+
+      // Level filter
+      if (this.logLevelFilter !== 'ALL') {
+        result = result.filter(l => l.level === this.logLevelFilter);
+      }
+
+      // Text search
+      if (this.textSearch) {
+        const q = this.textSearch.toLowerCase();
+        result = result.filter(l =>
+          (l.message && l.message.toLowerCase().includes(q)) ||
+          (l.logger && l.logger.toLowerCase().includes(q)) ||
+          (l._payloadStr && l._payloadStr.toLowerCase().includes(q))
+        );
+      }
+
+      // Transaction ID filter
+      if (this.transactionIdFilter) {
+        const txn = this.transactionIdFilter.toLowerCase();
+        result = result.filter(l => l.transactionId && l.transactionId.toLowerCase().includes(txn));
+      }
+
+      // Category preset filter (client-side)
+      if (this.categoryPreset && this._categories.am && this._categories.am[this.categoryPreset]) {
+        const prefixes = this._categories.am[this.categoryPreset];
+        result = result.filter(l => {
+          if (!l.logger) return false;
+          return prefixes.some(prefix => l.logger.startsWith(prefix));
+        });
+      }
+
+      return result;
+    },
+
+    async connect() {
+      this.connecting = true;
+      this.connectionError = '';
+      try {
+        const headers = {};
+        this.customHeaders.filter(h => h.name && h.value).forEach(h => { headers[h.name] = h.value; });
+
+        const res = await fetch('/api/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            origin: this.origin,
+            apiKey: this.apiKey,
+            apiSecret: this.apiSecret,
+            customHeaders: headers
+          })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          this.connectionError = data.error || 'Connection failed';
+          return;
+        }
+        this.connected = true;
+        this.tenantName = this.origin.replace(/^https?:\/\//, '').replace('.forgeblocks.com', '').replace('.id.forgerock.io', '');
+
+        // Save connection if remember is checked
+        if (this.rememberConnection) {
+          localStorage.setItem('pingaic-connection', JSON.stringify({
+            origin: this.origin,
+            apiKey: this.apiKey
+          }));
+        } else {
+          localStorage.removeItem('pingaic-connection');
+        }
+
+        // Save custom headers to sessionStorage
+        if (this.customHeaders.length > 0) {
+          sessionStorage.setItem('pingaic-custom-headers', JSON.stringify(this.customHeaders));
+        }
+
+        this.connectWebSocket();
+      } catch (e) {
+        this.connectionError = 'Network error: ' + e.message;
+      } finally {
+        this.connecting = false;
+      }
+    },
+
+    connectWebSocket() {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      this.ws = new WebSocket(`${proto}//${window.location.host}/ws/tail`);
+
+      this.ws.onopen = () => {
+        this.reconnectAttempts = 0;
+        this.reconnecting = false;
+        const customH = {};
+        this.customHeaders.filter(h => h.name && h.value).forEach(h => { customH[h.name] = h.value; });
+        this.ws.send(JSON.stringify({
+          type: 'connect',
+          origin: this.origin,
+          apiKey: this.apiKey,
+          apiSecret: this.apiSecret,
+          customHeaders: customH
+        }));
+        this.startTail();
+      };
+
+      this.ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        this.handleWsMessage(msg);
+      };
+
+      this.ws.onclose = () => {
+        this.tailing = false;
+        if (this.connected && this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnecting = true;
+          const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+          this.reconnectAttempts++;
+          setTimeout(() => this.connectWebSocket(), delay);
+        } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+          this.reconnecting = false;
+          this.connectionError = 'Connection lost after ' + this.maxReconnectAttempts + ' attempts';
+        }
+      };
+
+      this.ws.onerror = () => {};
+    },
+
+    handleWsMessage(msg) {
+      switch (msg.type) {
+        case 'logs':
+          if (!this.paused && msg.logs) {
+            this.appendLogs(msg.logs);
+          }
+          if (msg.rateLimit) this.rateLimit = msg.rateLimit;
+          break;
+        case 'connected':
+          break;
+        case 'error':
+          console.error('WS error:', msg.error);
+          break;
+      }
+    },
+
+    appendLogs(newLogs) {
+      for (const log of newLogs) {
+        log.id = ++this._logIdCounter;
+        log.expanded = false;
+        log._payloadStr = JSON.stringify(log.payload);
+        this.logs.push(log);
+      }
+      // Trim to max buffer
+      if (this.logs.length > this.maxLogBuffer) {
+        this.logs.splice(0, this.logs.length - this.maxLogBuffer);
+      }
+      this.$nextTick(() => {
+        if (this.autoScroll && this.$refs.logContainer) {
+          this.$refs.logContainer.scrollTop = this.$refs.logContainer.scrollHeight;
+        }
+      });
+    },
+
+    startTail() {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      this.ws.send(JSON.stringify({
+        type: 'start_tail',
+        sources: this.activeSources,
+        noiseFilter: this.noiseFilter,
+        pollFrequency: this.pollFrequency
+      }));
+      this.tailing = true;
+    },
+
+    stopTail() {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      this.ws.send(JSON.stringify({ type: 'stop_tail' }));
+      this.tailing = false;
+    },
+
+    restartTail() {
+      if (this.tailing) {
+        this.stopTail();
+        setTimeout(() => this.startTail(), 100);
+      }
+    },
+
+    togglePause() {
+      this.paused = !this.paused;
+    },
+
+    clearLogs() {
+      this.logs = [];
+      this._logIdCounter = 0;
+    },
+
+    resumeAutoScroll() {
+      this.autoScroll = true;
+      if (this.$refs.logContainer) {
+        this.$refs.logContainer.scrollTop = this.$refs.logContainer.scrollHeight;
+      }
+    },
+
+    handleScroll() {
+      const el = this.$refs.logContainer;
+      if (!el) return;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+      if (!atBottom && this.autoScroll) {
+        this.autoScroll = false;
+      }
+    },
+
+    disconnect() {
+      this.stopTail();
+      if (this.ws) { this.ws.close(); this.ws = null; }
+      this.connected = false;
+      this.tailing = false;
+      this.reconnecting = false;
+      this.logs = [];
+    },
+
+    // Category presets
+    applyCategoryPreset() {
+      // Category preset is applied as a client-side filter in filteredLogs getter
+      // No need to restart tail - it filters the existing logs
+    },
+
+    // History
+    setHistoryRange(minutes) {
+      const end = new Date();
+      const start = new Date(end.getTime() - minutes * 60000);
+      this.historyEnd = toDatetimeLocal(end);
+      this.historyStart = toDatetimeLocal(start);
+    },
+
+    async searchHistory() {
+      if (!this.historyStart || !this.historyEnd) {
+        this.historyError = 'Please set both start and end times';
+        return;
+      }
+      this.historyError = '';
+      this.historyLoading = true;
+      this.historyNextCookie = null;
+
+      // Stop live tailing during history search
+      this.stopTail();
+      this.clearLogs();
+
+      try {
+        await this._fetchHistoryPage(null);
+      } catch (e) {
+        this.historyError = 'Search failed: ' + e.message;
+      } finally {
+        this.historyLoading = false;
+      }
+    },
+
+    async loadMoreHistory() {
+      if (!this.historyNextCookie) return;
+      this.historyLoading = true;
+      try {
+        await this._fetchHistoryPage(this.historyNextCookie);
+      } catch (e) {
+        this.historyError = 'Load more failed: ' + e.message;
+      } finally {
+        this.historyLoading = false;
+      }
+    },
+
+    async _fetchHistoryPage(cookie) {
+      const customH = {};
+      this.customHeaders.filter(h => h.name && h.value).forEach(h => { customH[h.name] = h.value; });
+
+      const res = await fetch('/api/logs/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origin: this.origin,
+          apiKey: this.apiKey,
+          apiSecret: this.apiSecret,
+          customHeaders: customH,
+          source: this.activeSources.join(','),
+          beginTime: datetimeLocalToISO(this.historyStart),
+          endTime: datetimeLocalToISO(this.historyEnd),
+          transactionId: this.historyTxnId || undefined,
+          queryFilter: this.historyQueryFilter || undefined,
+          cookie: cookie || undefined
+        })
+      });
+      const data = await res.json();
+      if (data.error) {
+        this.historyError = data.error;
+        return;
+      }
+
+      if (data.result) {
+        const processed = data.result.map(log => this._processLog(log));
+        this.appendLogs(processed);
+      }
+      this.historyNextCookie = data.pagedResultsCookie || null;
+    },
+
+    _processLog(raw) {
+      const payload = raw.payload || raw;
+      const p = typeof payload === 'string' ? { message: payload } : payload;
+      return {
+        timestamp: raw.timestamp || p.timestamp || '',
+        source: raw.source || '',
+        type: raw.type || '',
+        level: p.level || (p.severity ? String(p.severity) : ''),
+        logger: p.logger || '',
+        transactionId: p.transactionId || '',
+        message: extractMessage(p),
+        payload: p
+      };
+    },
+
+    resumeTailing() {
+      this.startTail();
+      this.showHistory = false;
+    },
+
+    // Export
+    exportLogs() {
+      const data = this.exportScope === 'filtered' ? this.filteredLogs : this.logs;
+      let content, ext, mime;
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+
+      switch (this.exportFormat) {
+        case 'json':
+          content = JSON.stringify(data.map(l => l.payload), null, 2);
+          ext = 'json';
+          mime = 'application/json';
+          break;
+        case 'text':
+          content = this._exportAsText(data);
+          ext = 'txt';
+          mime = 'text/plain';
+          break;
+        case 'csv':
+          content = this._exportAsCsv(data);
+          ext = 'csv';
+          mime = 'text/csv';
+          break;
+      }
+
+      const blob = new Blob([content], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pingaic-logs-${ts}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      this.showExport = false;
+    },
+
+    _exportAsText(data) {
+      let lines = [
+        '=== PingAIC Log Export ===',
+        'Tenant: ' + this.origin,
+        'Exported: ' + new Date().toISOString(),
+        'Source: ' + this.activeSources.join(', '),
+        'Filters: Noise=' + (this.noiseFilter ? 'ON' : 'OFF') +
+          (this.logLevelFilter !== 'ALL' ? ', Level=' + this.logLevelFilter : '') +
+          (this.textSearch ? ', Search="' + this.textSearch + '"' : '') +
+          (this.transactionIdFilter ? ', TxnID=' + this.transactionIdFilter : ''),
+        'Total entries: ' + data.length,
+        ''
+      ];
+      for (const log of data) {
+        lines.push('---');
+        lines.push(`[${log.timestamp}] [${log.level || '-'}] [${log.source}]`);
+        if (log.logger) lines.push('Logger: ' + log.logger);
+        if (log.transactionId) lines.push('Transaction: ' + log.transactionId);
+        if (log.message) lines.push('Message: ' + log.message);
+        lines.push('Payload:');
+        lines.push(JSON.stringify(log.payload, null, 2));
+        lines.push('');
+      }
+      return lines.join('\n');
+    },
+
+    _exportAsCsv(data) {
+      const escape = (v) => '"' + String(v || '').replace(/"/g, '""') + '"';
+      let lines = ['timestamp,source,level,logger,transactionId,message,payloadJson'];
+      for (const log of data) {
+        lines.push([
+          escape(log.timestamp), escape(log.source), escape(log.level),
+          escape(log.logger), escape(log.transactionId), escape(log.message),
+          escape(JSON.stringify(log.payload))
+        ].join(','));
+      }
+      return lines.join('\n');
+    },
+
+    // Hidden feature: custom headers
+    handleVersionClick() {
+      this._versionClicks++;
+      clearTimeout(this._versionClickTimer);
+      this._versionClickTimer = setTimeout(() => { this._versionClicks = 0; }, 3000);
+      if (this._versionClicks >= 5) {
+        this.showCustomHeaders = !this.showCustomHeaders;
+        if (this.showCustomHeaders && this.customHeaders.length === 0) {
+          this.customHeaders.push({ name: '', value: '' });
+        }
+        this._versionClicks = 0;
+        this.showSettings = true;
+      }
+    },
+
+    handleKeydown(event) {
+      // Ctrl+Shift+H or Cmd+Shift+H - toggle custom headers
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'H') {
+        event.preventDefault();
+        this.showCustomHeaders = !this.showCustomHeaders;
+        if (this.showCustomHeaders && this.customHeaders.length === 0) {
+          this.customHeaders.push({ name: '', value: '' });
+        }
+        this.showSettings = true;
+      }
+      // Ctrl+H or Cmd+H - toggle history
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key === 'h') {
+        event.preventDefault();
+        this.showHistory = !this.showHistory;
+      }
+      // Escape - close panels
+      if (event.key === 'Escape') {
+        this.showSettings = false;
+        this.showHistory = false;
+        this.showExport = false;
+      }
+    },
+
+    copyPayload(log) {
+      navigator.clipboard.writeText(JSON.stringify(log.payload, null, 2));
+    },
+
+    // Re-export utility functions for Alpine template access
+    formatTime,
+    formatSource,
+    syntaxHighlight,
+    extractMessage,
+    toDatetimeLocal,
+    datetimeLocalToISO
+  }));
+});

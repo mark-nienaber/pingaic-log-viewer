@@ -1,0 +1,19 @@
+[
+  { "id": "am-everything", "label": "AM Everything", "description": "All AM log sources combined" },
+  { "id": "am-access", "label": "AM Access", "description": "AM access audit logs" },
+  { "id": "am-authentication", "label": "AM Authentication", "description": "AM authentication events" },
+  { "id": "am-config", "label": "AM Config", "description": "AM configuration changes" },
+  { "id": "am-core", "label": "AM Core", "description": "AM core debug logs" },
+  { "id": "am-activity", "label": "AM Activity", "description": "AM activity audit logs" },
+  { "id": "idm-everything", "label": "IDM Everything", "description": "All IDM log sources combined" },
+  { "id": "idm-access", "label": "IDM Access", "description": "IDM access audit logs" },
+  { "id": "idm-activity", "label": "IDM Activity", "description": "IDM identity object changes" },
+  { "id": "idm-authentication", "label": "IDM Authentication", "description": "IDM authentication events" },
+  { "id": "idm-config", "label": "IDM Config", "description": "IDM configuration changes" },
+  { "id": "idm-core", "label": "IDM Core", "description": "IDM core debug logs" },
+  { "id": "idm-sync", "label": "IDM Sync", "description": "IDM synchronization operations" },
+  { "id": "ctsstore", "label": "CTS Store", "description": "Core Token Service store logs" },
+  { "id": "ctsstore-access", "label": "CTS Access", "description": "CTS access logs" },
+  { "id": "userstore", "label": "User Store", "description": "User store directory logs" },
+  { "id": "userstore-access", "label": "User Store Access", "description": "User store access logs" }
+]
