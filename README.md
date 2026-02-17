@@ -1,5 +1,8 @@
 # PingAIC Log Viewer
 
+**Version:** 1.0.0
+**Author:** Mark Nienaber
+
 A web-based log viewer for PingOne Advanced Identity Cloud (AIC) with live tailing, historical search, unified AM/IDM views, and intelligent noise filtering.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)

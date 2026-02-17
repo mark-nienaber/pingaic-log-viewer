@@ -8,6 +8,7 @@
     "stop": "lsof -ti:${PORT:-3000} | xargs kill 2>/dev/null || echo 'No process found on port ${PORT:-3000}'",
     "dev": "node --watch server.js"
   },
+  "author": "Mark Nienaber",
   "keywords": ["pingone", "aic", "forgerock", "logs", "monitoring", "debug"],
   "license": "MIT",
   "dependencies": {
