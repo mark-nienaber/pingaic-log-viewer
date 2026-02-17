@@ -167,6 +167,44 @@ document.addEventListener('alpine:init', () => {
       this.$watch('pollFrequency', () => {
         if (this.tailing) this.restartTail();
       });
+
+      // Auto-reconnect from saved session
+      try {
+        const session = sessionStorage.getItem('pingaic-session');
+        if (session) {
+          const s = JSON.parse(session);
+          this.origin = s.origin || this.origin;
+          this.apiKey = s.apiKey || this.apiKey;
+          this.apiSecret = s.apiSecret || this.apiSecret;
+          if (s.activeSources) this.activeSources = s.activeSources;
+          if (s.pollFrequency) this.pollFrequency = s.pollFrequency;
+          if (s.maxLogBuffer) this.maxLogBuffer = s.maxLogBuffer;
+          if (s.logLevelFilter) this.logLevelFilter = s.logLevelFilter;
+          if (s.categoryPreset !== undefined) this.categoryPreset = s.categoryPreset;
+          if (s.origin && s.apiKey && s.apiSecret) {
+            this.connect();
+          }
+        }
+      } catch {}
+    },
+
+    _saveSession() {
+      try {
+        sessionStorage.setItem('pingaic-session', JSON.stringify({
+          origin: this.origin,
+          apiKey: this.apiKey,
+          apiSecret: this.apiSecret,
+          activeSources: this.activeSources,
+          pollFrequency: this.pollFrequency,
+          maxLogBuffer: this.maxLogBuffer,
+          logLevelFilter: this.logLevelFilter,
+          categoryPreset: this.categoryPreset
+        }));
+      } catch {}
+    },
+
+    _clearSession() {
+      sessionStorage.removeItem('pingaic-session');
     },
 
     // Noise category helpers
@@ -328,6 +366,7 @@ document.addEventListener('alpine:init', () => {
           sessionStorage.setItem('pingaic-custom-headers', JSON.stringify(this.customHeaders));
         }
 
+        this._saveSession();
         this.connectWebSocket();
       } catch (e) {
         this.connectionError = 'Network error: ' + e.message;
@@ -431,6 +470,7 @@ document.addEventListener('alpine:init', () => {
     restartTail() {
       if (this.tailing) {
         this.stopTail();
+        this._saveSession();
         setTimeout(() => this.startTail(), 100);
       }
     },
@@ -467,6 +507,7 @@ document.addEventListener('alpine:init', () => {
       this.tailing = false;
       this.reconnecting = false;
       this.logs = [];
+      this._clearSession();
     },
 
     // Saved connections
