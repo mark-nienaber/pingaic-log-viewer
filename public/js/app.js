@@ -52,6 +52,9 @@ document.addEventListener('alpine:init', () => {
     maxLogBuffer: 5000,
     autoScroll: true,
 
+    // Custom noise filters (user-added)
+    customNoiseLoggers: [],
+
     // Custom headers (hidden feature)
     showCustomHeaders: false,
     customHeaders: [],
@@ -126,6 +129,12 @@ document.addEventListener('alpine:init', () => {
         console.error('Failed to load categories:', e);
       }
 
+      // Restore custom noise loggers from localStorage
+      try {
+        const saved = localStorage.getItem('pingaic-custom-noise');
+        if (saved) this.customNoiseLoggers = JSON.parse(saved);
+      } catch {}
+
       // Restore custom headers from sessionStorage
       try {
         const saved = sessionStorage.getItem('pingaic-custom-headers');
@@ -143,6 +152,11 @@ document.addEventListener('alpine:init', () => {
 
     get filteredLogs() {
       let result = this.logs;
+
+      // Custom noise loggers (always applied, independent of noise filter toggle)
+      if (this.customNoiseLoggers.length > 0) {
+        result = result.filter(l => !this.customNoiseLoggers.includes(l.logger));
+      }
 
       // Level filter
       if (this.logLevelFilter !== 'ALL') {
@@ -529,6 +543,22 @@ document.addEventListener('alpine:init', () => {
         ].join(','));
       }
       return lines.join('\n');
+    },
+
+    // Custom noise management
+    muteLogger(loggerName) {
+      if (!loggerName || this.customNoiseLoggers.includes(loggerName)) return;
+      this.customNoiseLoggers.push(loggerName);
+      localStorage.setItem('pingaic-custom-noise', JSON.stringify(this.customNoiseLoggers));
+    },
+
+    unmuteLogger(loggerName) {
+      this.customNoiseLoggers = this.customNoiseLoggers.filter(l => l !== loggerName);
+      localStorage.setItem('pingaic-custom-noise', JSON.stringify(this.customNoiseLoggers));
+    },
+
+    isLoggerMuted(loggerName) {
+      return this.customNoiseLoggers.includes(loggerName);
     },
 
     // Hidden feature: custom headers
