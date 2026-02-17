@@ -138,9 +138,9 @@ class TailManager {
         timestamp: raw.timestamp || p.timestamp || '',
         source: raw.source || '',
         type: raw.type || '',
-        level: p.level || '',
-        logger: p.logger || '',
-        transactionId: p.transactionId || '',
+        level: p.level || p.severity || '',
+        logger: p.logger || p.eventName || p.component || p.topic || raw.type || '',
+        transactionId: p.transactionId || p.trackingIds?.[0] || '',
         message: this._extractMessage(p),
         payload: p
       });

@@ -382,13 +382,23 @@
         </label>
       </div>
 
-      <!-- Custom noise filters -->
-      <div x-show="customNoiseLoggers.length > 0" class="mt-4 pt-4 border-t border-slate-600">
+      <!-- Custom noise filters (always visible) -->
+      <div class="mt-4 pt-4 border-t border-slate-600">
         <div class="flex items-center justify-between mb-2">
           <h3 class="text-xs font-semibold text-red-400">Muted Loggers</h3>
-          <span class="text-[10px] text-slate-500" x-text="customNoiseLoggers.length + ' muted'"></span>
+          <span x-show="customNoiseLoggers.length > 0" class="text-[10px] text-slate-500" x-text="customNoiseLoggers.length + ' muted'"></span>
         </div>
-        <div class="space-y-1 max-h-48 overflow-y-auto">
+        <p class="text-[10px] text-slate-500 mb-2">Add logger names to always hide from results. You can also hover a logger name in the log viewer and click the mute icon.</p>
+        <!-- Manual add input -->
+        <div class="flex gap-1 mb-2" x-data="{ newLogger: '' }">
+          <input type="text" x-model="newLogger" placeholder="e.g. org.forgerock.openam.core.rest..."
+            @keydown.enter="if(newLogger.trim()) { muteLogger(newLogger.trim()); newLogger = ''; }"
+            class="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[11px] text-white placeholder-slate-500 focus:ring-1 focus:ring-ping-orange focus:outline-none">
+          <button @click="if(newLogger.trim()) { muteLogger(newLogger.trim()); newLogger = ''; }"
+            class="bg-slate-700 hover:bg-slate-600 text-slate-300 rounded px-2 py-1 text-[10px] shrink-0">Add</button>
+        </div>
+        <!-- Muted list -->
+        <div x-show="customNoiseLoggers.length > 0" class="space-y-1 max-h-48 overflow-y-auto">
           <template x-for="(logger, idx) in customNoiseLoggers" :key="idx">
             <div class="flex items-center justify-between bg-slate-900 rounded px-2 py-1 group">
               <span class="text-[10px] text-slate-300 truncate" x-text="logger" :title="logger"></span>
@@ -396,8 +406,9 @@
             </div>
           </template>
         </div>
-        <button @click="customNoiseLoggers = []; localStorage.setItem('pingaic-custom-noise', '[]')"
-          class="text-[10px] text-slate-500 hover:text-red-400 mt-2">Clear all muted loggers</button>
+        <div x-show="customNoiseLoggers.length === 0" class="text-[10px] text-slate-600 italic">No custom muted loggers</div>
+        <button x-show="customNoiseLoggers.length > 0" @click="customNoiseLoggers = []; localStorage.setItem('pingaic-custom-noise', '[]')"
+          class="text-[10px] text-slate-500 hover:text-red-400 mt-2">Clear all</button>
       </div>
 
       <!-- Hidden custom headers section -->
