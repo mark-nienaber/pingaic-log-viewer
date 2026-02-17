@@ -73,15 +73,15 @@ This installs only 3 production dependencies:
 - `ws` — WebSocket support for real-time streaming
 - `dotenv` — Environment variable loading
 
-### 3. Configure Environment
-
-Copy the example environment file and edit it with your tenant credentials:
+### 3. Configure Environment (Optional)
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your values:
+> **Note:** The `.env` file is optional. You can enter all connection details directly in the browser UI instead. See [Connecting to Your Tenant](#connecting-to-your-tenant) below.
+
+If you prefer to pre-configure credentials, edit `.env` with your values:
 
 ```env
 PORT=3000
@@ -92,14 +92,18 @@ POLL_FREQUENCY=10
 MAX_LOG_BUFFER=5000
 ```
 
-> **Tip:** The `.env` values pre-fill the connection form in the UI. You can also enter or override credentials directly in the browser.
-
 ## Running the Application
 
 ### Standard Mode
 
 ```bash
 npm start
+```
+
+### Stop the Server
+
+```bash
+npm stop
 ```
 
 ### Development Mode (auto-restart on file changes)
@@ -116,14 +120,28 @@ PingAIC Log Viewer running at http://localhost:3000
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+## Connecting to Your Tenant
+
+There are two ways to provide your tenant credentials:
+
+### Option 1: Enter Credentials in the UI
+
+1. Open [http://localhost:3000](http://localhost:3000)
+2. Enter your **Tenant URL**, **API Key**, and **API Secret** directly in the connection form
+3. Optionally check **Remember connection** to save credentials in your browser's local storage so they persist across sessions
+4. Click **Connect**
+
+### Option 2: Pre-configure via `.env` File
+
+1. Copy `.env.example` to `.env` and fill in your credentials (see [Configure Environment](#3-configure-environment-optional))
+2. Start the server — the connection form will be pre-filled with your `.env` values
+3. Click **Connect**
+
+> **Tip:** You can mix both approaches — pre-fill defaults in `.env` and override them in the UI as needed.
+
+Once connected, live log tailing begins automatically.
+
 ## Usage Guide
-
-### Connecting to Your Tenant
-
-1. On the connection page, enter your **Tenant URL**, **API Key**, and **API Secret** (these will be pre-filled if configured in `.env`)
-2. Optionally check **Remember connection** to save credentials in your browser's local storage for next time
-3. Click **Connect** — the app will test the credentials against your tenant
-4. Once connected, live log tailing begins automatically
 
 ### Live Log Tailing
 
