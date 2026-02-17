@@ -47,8 +47,12 @@ document.addEventListener('alpine:init', () => {
     logLevelFilter: 'ALL',
     textSearch: '',
     transactionIdFilter: '',
-    noiseFilter: true,
     categoryPreset: '',
+
+    // Noise filter categories
+    noiseCategories: [],
+    enabledNoiseCategories: [],
+    showNoiseDropdown: false,
 
     // Settings
     showSettings: false,
@@ -83,9 +87,8 @@ document.addEventListener('alpine:init', () => {
     // Rate limit
     rateLimit: { limit: 0, remaining: 0, resetTime: 0 },
 
-    // Category data (loaded from server)
+    // Category preset data (loaded from server)
     _categories: {},
-    _noiseLoggers: [],
 
     async init() {
       // Load config defaults from server
@@ -122,19 +125,21 @@ document.addEventListener('alpine:init', () => {
         }
       } catch {}
 
-      // Load category/noise filter data
+      // Load noise categories from server
       try {
         const res = await fetch('/api/categories');
         const data = await res.json();
-        if (data.noiseFilters) {
-          const all = [];
-          for (const group of Object.values(data.noiseFilters.am || {})) {
-            all.push(...group);
+        if (data.noiseCategories) {
+          this.noiseCategories = data.noiseCategories;
+          // Initialize enabled categories from localStorage or defaults
+          const saved = localStorage.getItem('pingaic-noise-categories');
+          if (saved) {
+            this.enabledNoiseCategories = JSON.parse(saved);
+          } else {
+            this.enabledNoiseCategories = data.noiseCategories
+              .filter(c => c.defaultEnabled)
+              .map(c => c.id);
           }
-          for (const group of Object.values(data.noiseFilters.idm || {})) {
-            all.push(...group);
-          }
-          this._noiseLoggers = all;
         }
         if (data.categories) {
           this._categories = data.categories;
@@ -164,12 +169,89 @@ document.addEventListener('alpine:init', () => {
       });
     },
 
+    // Noise category helpers
+    get enabledNoiseCategoryCount() {
+      return this.enabledNoiseCategories.length;
+    },
+
+    get totalNoiseCategoryCount() {
+      return this.noiseCategories.length;
+    },
+
+    get noiseCategoriesByLevel() {
+      const groups = { high: [], medium: [], low: [], idm: [] };
+      for (const cat of this.noiseCategories) {
+        if (cat.id.startsWith('idm-')) {
+          groups.idm.push(cat);
+        } else {
+          groups[cat.noise || 'medium'].push(cat);
+        }
+      }
+      return groups;
+    },
+
+    isNoiseCategoryEnabled(id) {
+      return this.enabledNoiseCategories.includes(id);
+    },
+
+    toggleNoiseCategory(id) {
+      const idx = this.enabledNoiseCategories.indexOf(id);
+      if (idx >= 0) {
+        this.enabledNoiseCategories.splice(idx, 1);
+      } else {
+        this.enabledNoiseCategories.push(id);
+      }
+      this._saveNoisePreferences();
+      this._sendNoiseUpdate();
+    },
+
+    enableAllNoiseCategories() {
+      this.enabledNoiseCategories = this.noiseCategories.map(c => c.id);
+      this._saveNoisePreferences();
+      this._sendNoiseUpdate();
+    },
+
+    disableAllNoiseCategories() {
+      this.enabledNoiseCategories = [];
+      this._saveNoisePreferences();
+      this._sendNoiseUpdate();
+    },
+
+    _saveNoisePreferences() {
+      localStorage.setItem('pingaic-noise-categories', JSON.stringify(this.enabledNoiseCategories));
+    },
+
+    _sendNoiseUpdate() {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN && this.tailing) {
+        this.ws.send(JSON.stringify({
+          type: 'update_filters',
+          enabledNoiseCategories: this.enabledNoiseCategories
+        }));
+      }
+    },
+
+    getCategoryLoggerCount(cat) {
+      let count = (cat.loggers || []).length;
+      if (cat.prefixes && cat.prefixes.length > 0) {
+        count += cat.prefixes.length; // each prefix counts as 1 (covers many)
+      }
+      return count;
+    },
+
+    get categoryPresetOptions() {
+      return Object.entries(this._categories).map(([id, cat]) => ({
+        id,
+        name: cat.name || id
+      }));
+    },
+
     get filteredLogs() {
       let result = this.logs;
 
       // Custom noise loggers (always applied, independent of noise filter toggle)
       if (this.customNoiseLoggers.length > 0) {
-        result = result.filter(l => !this.customNoiseLoggers.includes(l.logger));
+        const muteSet = new Set(this.customNoiseLoggers);
+        result = result.filter(l => !muteSet.has(l.logger));
       }
 
       // Level filter
@@ -193,12 +275,17 @@ document.addEventListener('alpine:init', () => {
         result = result.filter(l => l.transactionId && l.transactionId.toLowerCase().includes(txn));
       }
 
-      // Category preset filter (client-side)
-      if (this.categoryPreset && this._categories.am && this._categories.am[this.categoryPreset]) {
-        const prefixes = this._categories.am[this.categoryPreset];
+      // Category preset filter (matches on source + logger prefix)
+      if (this.categoryPreset && this._categories[this.categoryPreset]) {
+        const cat = this._categories[this.categoryPreset];
+        const sources = cat.sources || [];
+        const loggers = cat.loggers || [];
         result = result.filter(l => {
-          if (!l.logger) return false;
-          return prefixes.some(prefix => l.logger.startsWith(prefix));
+          if (sources.length > 0 && sources.includes(l.source)) return true;
+          if (l.logger && loggers.length > 0) {
+            return loggers.some(prefix => l.logger.startsWith(prefix));
+          }
+          return false;
         });
       }
 
@@ -310,15 +397,16 @@ document.addEventListener('alpine:init', () => {
         log.id = ++this._logIdCounter;
         log.expanded = false;
         log._payloadStr = JSON.stringify(log.payload);
-        this.logs.push(log);
       }
-      // Trim to max buffer
+      // Prepend newest first (reverse the chronological batch, then unshift)
+      this.logs.unshift(...newLogs.reverse());
+      // Trim old logs from the end
       if (this.logs.length > this.maxLogBuffer) {
-        this.logs.splice(0, this.logs.length - this.maxLogBuffer);
+        this.logs.length = this.maxLogBuffer;
       }
       this.$nextTick(() => {
         if (this.autoScroll && this.$refs.logContainer) {
-          this.$refs.logContainer.scrollTop = this.$refs.logContainer.scrollHeight;
+          this.$refs.logContainer.scrollTop = 0;
         }
       });
     },
@@ -328,7 +416,7 @@ document.addEventListener('alpine:init', () => {
       this.ws.send(JSON.stringify({
         type: 'start_tail',
         sources: this.activeSources,
-        noiseFilter: this.noiseFilter,
+        enabledNoiseCategories: this.enabledNoiseCategories,
         pollFrequency: this.pollFrequency
       }));
       this.tailing = true;
@@ -359,15 +447,15 @@ document.addEventListener('alpine:init', () => {
     resumeAutoScroll() {
       this.autoScroll = true;
       if (this.$refs.logContainer) {
-        this.$refs.logContainer.scrollTop = this.$refs.logContainer.scrollHeight;
+        this.$refs.logContainer.scrollTop = 0;
       }
     },
 
     handleScroll() {
       const el = this.$refs.logContainer;
       if (!el) return;
-      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-      if (!atBottom && this.autoScroll) {
+      const atTop = el.scrollTop < 50;
+      if (!atTop && this.autoScroll) {
         this.autoScroll = false;
       }
     },
@@ -410,11 +498,7 @@ document.addEventListener('alpine:init', () => {
       if (this.selectedConnectionIdx === idx) this.selectedConnectionIdx = -1;
     },
 
-    // Category presets
-    applyCategoryPreset() {
-      // Category preset is applied as a client-side filter in filteredLogs getter
-      // No need to restart tail - it filters the existing logs
-    },
+    // Category presets (filtering applied reactively in filteredLogs getter)
 
     // History
     setHistoryRange(minutes) {
@@ -551,10 +635,12 @@ document.addEventListener('alpine:init', () => {
         'Tenant: ' + this.origin,
         'Exported: ' + new Date().toISOString(),
         'Source: ' + this.activeSources.join(', '),
-        'Filters: Noise=' + (this.noiseFilter ? 'ON' : 'OFF') +
-          (this.logLevelFilter !== 'ALL' ? ', Level=' + this.logLevelFilter : '') +
-          (this.textSearch ? ', Search="' + this.textSearch + '"' : '') +
-          (this.transactionIdFilter ? ', TxnID=' + this.transactionIdFilter : ''),
+        'Noise categories: ' + this.enabledNoiseCategoryCount + '/' + this.totalNoiseCategoryCount + ' enabled',
+        'Filters: ' +
+          (this.logLevelFilter !== 'ALL' ? 'Level=' + this.logLevelFilter + ', ' : '') +
+          (this.textSearch ? 'Search="' + this.textSearch + '", ' : '') +
+          (this.transactionIdFilter ? 'TxnID=' + this.transactionIdFilter + ', ' : '') +
+          (this.customNoiseLoggers.length > 0 ? this.customNoiseLoggers.length + ' custom muted' : ''),
         'Total entries: ' + data.length,
         ''
       ];
@@ -635,6 +721,7 @@ document.addEventListener('alpine:init', () => {
         this.showSettings = false;
         this.showHistory = false;
         this.showExport = false;
+        this.showNoiseDropdown = false;
       }
     },
 

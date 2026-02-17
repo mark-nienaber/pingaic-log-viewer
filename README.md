@@ -15,8 +15,10 @@ PingAIC Log Viewer provides a browser-based dashboard for monitoring and searchi
 
 Key capabilities:
 - **Real-time log streaming** via WebSocket with configurable poll frequency
-- **Unified AM + IDM view** — see all logs interleaved by timestamp
-- **140+ noise filters** — suppress known noisy loggers with one toggle
+- **Unified AM + IDM view** — see all logs interleaved, newest first
+- **14 noise filter categories** — suppress known noisy loggers by category (Session, Config, REST, Health, LDAP, etc.) with per-category toggle
+- **Smart log messages** — contextual message extraction showing event name, principal, journey/tree name, outcome, HTTP method/path, and more
+- **Category presets** — quick-filter by Authentication, Access, Federation, OAuth, Scripting, Policy, Session, Config, Activity, or IDM Sync — matching on both log source and logger
 - **Historical search** — query logs by time range with pagination
 - **Export** — download logs as JSON, human-readable text, or CSV
 
@@ -150,10 +152,12 @@ Once connected, live log tailing begins automatically.
 
 - Logs stream in real-time from your tenant via WebSocket
 - By default, both AM and IDM logs are shown in a unified view
+- **Newest logs appear at the top** — no need to scroll down to see what just happened
 - Logs are color-coded by source: **amber** for AM, **cyan** for IDM
 - Log levels are color-coded: **red** = ERROR, **yellow** = WARNING, **blue** = INFO, **gray** = DEBUG
+- The message column shows contextual summaries: event name, principal, journey/tree name, node outcome, HTTP request path, and more — making it easy to find relevant logs before expanding
 - Click any log row to expand it and see the full JSON payload with syntax highlighting
-- Auto-scroll keeps you at the bottom; scroll up to pause, then click **Resume auto-scroll** to return
+- Auto-scroll keeps you at the top (newest logs); scroll down to browse history, then click **Latest logs** to return
 
 ### Filtering
 
@@ -163,10 +167,10 @@ Use the filter bar to narrow down logs:
 |--------|-------------|
 | **Sources** | Select which log sources to include (AM, IDM, or specific sub-sources) |
 | **Level** | Filter by log level (ERROR, WARNING, INFO, DEBUG) |
-| **Search** | Free-text search across log messages |
+| **Search** | Free-text search across log messages, loggers, and full payloads |
 | **Transaction ID** | Filter by a specific transaction ID — click any txnId in the log to auto-filter |
-| **Noise Filter** | Toggle to hide 140+ known noisy loggers (enabled by default) |
-| **Category Presets** | Quick-select loggers by category: Authentication, Federation, OAuth, Scripting, Policy, Session |
+| **Noise Filter** | Dropdown with 14 categories of noisy loggers grouped by severity (High/Medium/Low/IDM). Toggle individual categories on/off. Defaults: High + Medium + IDM enabled, Low disabled |
+| **Category Presets** | Quick-filter by log type: Authentication, Access, Federation, OAuth, Scripting, Policy, Session, Config, Activity, IDM Sync. Matches on both log source and logger prefix |
 
 ### Historical Search
 
@@ -198,9 +202,11 @@ Click the gear icon to access settings:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| **Poll Frequency** | Seconds between API polls (2–60) | 10 |
-| **Max Buffer Size** | Maximum logs held in browser memory (500–50,000) | 5000 |
+| **Poll Frequency** | Seconds between API polls (2–30) | 10 |
+| **Max Buffer Size** | Maximum logs held in browser memory (1,000–10,000) | 5000 |
 | **Auto-scroll** | Automatically scroll to newest logs | On |
+| **Noise Categories** | View and toggle all 14 noise categories with expandable logger lists for each | — |
+| **Muted Loggers** | Manually mute individual loggers (also available by hovering a logger in the log viewer) | — |
 
 ## Configuration Reference
 
@@ -248,7 +254,7 @@ pingaic-log-viewer/
 │   │   ├── connection.js     # POST /api/connect
 │   │   └── logs.js           # Search, config, sources, categories endpoints
 │   └── data/
-│       ├── categories.json   # Noise filters + logger category definitions
+│       ├── categories.json   # 14 noise filter categories + category preset definitions
 │       └── sources.json      # Log source metadata
 └── public/
     ├── index.html            # Single-page application
@@ -296,7 +302,7 @@ PORT=3001 npm start
 
 - Ensure there is activity on your tenant generating logs
 - Check that the selected log sources are correct
-- Disable the noise filter to see if logs are being filtered out
+- Open the Noise Filter dropdown and try disabling some categories to see if logs are being filtered out
 - Check the rate limit indicator in the status bar — if at 0 remaining, wait for the reset
 
 ### Rate limiting

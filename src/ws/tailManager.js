@@ -10,9 +10,15 @@ class TailManager {
     this.polling = false;
     this.cookie = null;
     this.pollFrequency = 10000;
-    this.noiseFilter = true;
-    this._noiseLoggers = this._buildNoiseList();
+    this._noiseSet = new Set();
+    this._noisePrefixes = [];
     this._pollTimer = null;
+
+    // Index categories for quick lookup
+    this._categoryMap = new Map();
+    for (const cat of (noiseData.noiseCategories || [])) {
+      this._categoryMap.set(cat.id, cat);
+    }
 
     ws.on('message', (raw) => {
       try {
@@ -27,16 +33,29 @@ class TailManager {
     ws.on('error', () => this.stop());
   }
 
-  _buildNoiseList() {
-    const list = [];
-    if (noiseData.noiseFilters) {
-      for (const source of Object.values(noiseData.noiseFilters)) {
-        for (const loggers of Object.values(source)) {
-          list.push(...loggers);
-        }
+  _buildNoiseSet(enabledCategoryIds) {
+    const set = new Set();
+    const prefixes = [];
+    for (const id of enabledCategoryIds) {
+      const cat = this._categoryMap.get(id);
+      if (!cat) continue;
+      for (const logger of (cat.loggers || [])) {
+        set.add(logger);
+      }
+      if (cat.prefixes) {
+        prefixes.push(...cat.prefixes);
       }
     }
-    return list;
+    this._noiseSet = set;
+    this._noisePrefixes = prefixes;
+  }
+
+  _isNoise(logger) {
+    if (this._noiseSet.has(logger)) return true;
+    for (const prefix of this._noisePrefixes) {
+      if (logger.startsWith(prefix)) return true;
+    }
+    return false;
   }
 
   handleMessage(msg) {
@@ -52,7 +71,9 @@ class TailManager {
         break;
 
       case 'start_tail':
-        this.noiseFilter = msg.noiseFilter !== false;
+        if (msg.enabledNoiseCategories) {
+          this._buildNoiseSet(msg.enabledNoiseCategories);
+        }
         this.pollFrequency = (msg.pollFrequency || 10) * 1000;
         this.cookie = null;
         this.sources = (msg.sources || ['am-everything', 'idm-everything']).join(',');
@@ -64,7 +85,9 @@ class TailManager {
         break;
 
       case 'update_filters':
-        this.noiseFilter = msg.noiseFilter !== false;
+        if (msg.enabledNoiseCategories) {
+          this._buildNoiseSet(msg.enabledNoiseCategories);
+        }
         break;
     }
   }
@@ -118,6 +141,8 @@ class TailManager {
 
   _processLogs(rawLogs) {
     const processed = [];
+    const hasNoise = this._noiseSet.size > 0 || this._noisePrefixes.length > 0;
+
     for (const raw of rawLogs) {
       const payload = raw.payload;
       if (!payload) continue;
@@ -125,12 +150,11 @@ class TailManager {
       // Handle both JSON and plaintext payloads
       const p = typeof payload === 'string' ? { message: payload } : payload;
 
-      // Apply noise filter
-      if (this.noiseFilter && p.logger && this._noiseLoggers.includes(p.logger)) {
+      // Apply noise filter (Set lookup O(1) + prefix matching)
+      if (hasNoise && p.logger && this._isNoise(p.logger)) {
         continue;
       }
-      // Also filter noise by type (e.g., 'text/plain' entries that are noise)
-      if (this.noiseFilter && raw.type === 'text/plain' && this._noiseLoggers.includes('text/plain')) {
+      if (hasNoise && raw.type === 'text/plain' && this._noiseSet.has('text/plain')) {
         continue;
       }
 
@@ -149,19 +173,67 @@ class TailManager {
   }
 
   _extractMessage(payload) {
-    if (typeof payload === 'string') return payload.substring(0, 300);
-    if (payload.message) return String(payload.message).substring(0, 300);
+    if (typeof payload === 'string') return payload.substring(0, 500);
+    if (payload.message && !payload.entries && !payload.http) {
+      return String(payload.message).substring(0, 500);
+    }
+
+    const parts = [];
+
+    // Event name (e.g. AM-NODE-LOGIN-COMPLETED, AM-ACCESS-OUTCOME)
+    if (payload.eventName) parts.push(payload.eventName);
+
+    // Principal / who
+    const principal = payload.principal || payload.userId || payload.runAs;
+    if (principal) {
+      const who = Array.isArray(principal) ? principal[0] : principal;
+      if (who) parts.push(who);
+    }
+
+    // Realm
+    if (payload.realm && payload.realm !== '/') {
+      parts.push(payload.realm);
+    }
+
+    // Authentication entries (journey nodes, tree info)
     if (payload.entries && Array.isArray(payload.entries) && payload.entries.length > 0) {
       const entry = payload.entries[0];
-      if (entry.info && entry.info.nodeType) {
-        return entry.info.nodeType + (entry.info.displayName ? ': ' + entry.info.displayName : '');
+      if (entry.info) {
+        const i = entry.info;
+        const nodeParts = [];
+        if (i.treeName) nodeParts.push(i.treeName);
+        if (i.displayName) nodeParts.push(i.displayName);
+        else if (i.nodeType) nodeParts.push(i.nodeType);
+        if (i.nodeOutcome) nodeParts.push('→ ' + i.nodeOutcome);
+        if (i.authLevel && i.authLevel !== '0') nodeParts.push('level=' + i.authLevel);
+        if (nodeParts.length > 0) parts.push(nodeParts.join(' > '));
       }
     }
+
+    // HTTP access logs
     if (payload.http && payload.http.request) {
       const req = payload.http.request;
-      return (req.method || '') + ' ' + (req.path || '');
+      const httpMsg = (req.method || '') + ' ' + (req.path || '');
+      parts.push(httpMsg);
+      if (payload.response && payload.response.statusCode) {
+        parts.push('→ ' + payload.response.statusCode);
+      }
     }
-    return '';
+
+    // IDM activity/sync — operation + object
+    if (payload.operation) parts.push(payload.operation);
+    if (payload.objectId) parts.push(payload.objectId);
+
+    // Result / status
+    if (payload.result) parts.push('result=' + payload.result);
+    if (payload.status && typeof payload.status === 'string') parts.push(payload.status);
+
+    // Fallback to message if we have it as supplement
+    if (parts.length === 0 && payload.message) {
+      return String(payload.message).substring(0, 500);
+    }
+
+    return parts.join(' | ').substring(0, 500);
   }
 
   _send(data) {
