@@ -73,9 +73,20 @@ input[type="checkbox"]:checked::after {
   transform: rotate(45deg);
 }
 
-/* Date input dark mode */
+/* Date/time input dark mode - ensure time portion is visible */
+input[type="datetime-local"] {
+  color-scheme: dark;
+  min-width: 0;
+}
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: invert(0.7);
+  cursor: pointer;
+}
+input[type="datetime-local"]::-webkit-datetime-edit {
+  color: white;
+}
+input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+  color: white;
 }
 
 /* Prevent text selection on log rows for cleaner click experience */

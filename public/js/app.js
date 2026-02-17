@@ -7,9 +7,13 @@ document.addEventListener('alpine:init', () => {
     origin: '',
     apiKey: '',
     apiSecret: '',
+    showKey: false,
     showSecret: false,
     tenantName: '',
-    rememberConnection: false,
+    saveConnection: false,
+    savedConnections: [],
+    selectedConnectionIdx: -1,
+    showSavedDropdown: false,
 
     // WebSocket
     ws: null,
@@ -97,14 +101,24 @@ document.addEventListener('alpine:init', () => {
         console.error('Failed to load config:', e);
       }
 
-      // Restore remembered connection (overrides .env defaults if saved)
+      // Load saved connections
       try {
-        const saved = localStorage.getItem('pingaic-connection');
-        if (saved) {
-          const conn = JSON.parse(saved);
-          this.origin = conn.origin || this.origin;
-          this.apiKey = conn.apiKey || this.apiKey;
-          this.rememberConnection = true;
+        const saved = localStorage.getItem('pingaic-connections');
+        if (saved) this.savedConnections = JSON.parse(saved);
+        // Migrate old single-connection format
+        const legacy = localStorage.getItem('pingaic-connection');
+        if (legacy && this.savedConnections.length === 0) {
+          const conn = JSON.parse(legacy);
+          if (conn.origin) {
+            this.savedConnections.push({
+              name: conn.origin.replace(/^https?:\/\//, '').replace('.forgeblocks.com', '').replace('.id.forgerock.io', ''),
+              origin: conn.origin,
+              apiKey: conn.apiKey || '',
+              apiSecret: conn.apiSecret || ''
+            });
+            localStorage.setItem('pingaic-connections', JSON.stringify(this.savedConnections));
+            localStorage.removeItem('pingaic-connection');
+          }
         }
       } catch {}
 
@@ -216,14 +230,10 @@ document.addEventListener('alpine:init', () => {
         this.connected = true;
         this.tenantName = this.origin.replace(/^https?:\/\//, '').replace('.forgeblocks.com', '').replace('.id.forgerock.io', '');
 
-        // Save connection if remember is checked
-        if (this.rememberConnection) {
-          localStorage.setItem('pingaic-connection', JSON.stringify({
-            origin: this.origin,
-            apiKey: this.apiKey
-          }));
-        } else {
-          localStorage.removeItem('pingaic-connection');
+        // Save connection if checkbox is checked
+        if (this.saveConnection) {
+          this._saveCurrentConnection();
+          this.saveConnection = false;
         }
 
         // Save custom headers to sessionStorage
@@ -369,6 +379,35 @@ document.addEventListener('alpine:init', () => {
       this.tailing = false;
       this.reconnecting = false;
       this.logs = [];
+    },
+
+    // Saved connections
+    _saveCurrentConnection() {
+      const name = this.origin.replace(/^https?:\/\//, '').replace('.forgeblocks.com', '').replace('.id.forgerock.io', '');
+      const existing = this.savedConnections.findIndex(c => c.origin === this.origin);
+      const conn = { name, origin: this.origin, apiKey: this.apiKey, apiSecret: this.apiSecret };
+      if (existing >= 0) {
+        this.savedConnections[existing] = conn;
+      } else {
+        this.savedConnections.push(conn);
+      }
+      localStorage.setItem('pingaic-connections', JSON.stringify(this.savedConnections));
+    },
+
+    loadSavedConnection(idx) {
+      const conn = this.savedConnections[idx];
+      if (!conn) return;
+      this.origin = conn.origin;
+      this.apiKey = conn.apiKey;
+      this.apiSecret = conn.apiSecret;
+      this.selectedConnectionIdx = idx;
+      this.showSavedDropdown = false;
+    },
+
+    deleteSavedConnection(idx) {
+      this.savedConnections.splice(idx, 1);
+      localStorage.setItem('pingaic-connections', JSON.stringify(this.savedConnections));
+      if (this.selectedConnectionIdx === idx) this.selectedConnectionIdx = -1;
     },
 
     // Category presets
