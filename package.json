@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "stop": "lsof -ti:${PORT:-3000} | xargs kill 2>/dev/null || echo 'No process found on port ${PORT:-3000}'",
     "dev": "node --watch server.js"
   },
   "keywords": ["pingone", "aic", "forgerock", "logs", "monitoring", "debug"],
