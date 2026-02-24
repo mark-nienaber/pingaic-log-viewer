@@ -47,8 +47,6 @@ document.addEventListener('alpine:init', () => {
     logLevelFilter: 'ALL',
     textSearch: '',
     transactionIdFilter: '',
-    categoryPreset: '',
-
     // Noise filter categories
     noiseCategories: [],
     enabledNoiseCategories: [],
@@ -86,9 +84,6 @@ document.addEventListener('alpine:init', () => {
 
     // Rate limit
     rateLimit: { limit: 0, remaining: 0, resetTime: 0 },
-
-    // Category preset data (loaded from server)
-    _categories: {},
 
     async init() {
       // Load config defaults from server
@@ -141,9 +136,6 @@ document.addEventListener('alpine:init', () => {
               .map(c => c.id);
           }
         }
-        if (data.categories) {
-          this._categories = data.categories;
-        }
       } catch (e) {
         console.error('Failed to load categories:', e);
       }
@@ -180,7 +172,6 @@ document.addEventListener('alpine:init', () => {
           if (s.pollFrequency) this.pollFrequency = s.pollFrequency;
           if (s.maxLogBuffer) this.maxLogBuffer = s.maxLogBuffer;
           if (s.logLevelFilter) this.logLevelFilter = s.logLevelFilter;
-          if (s.categoryPreset !== undefined) this.categoryPreset = s.categoryPreset;
           if (s.origin && s.apiKey && s.apiSecret) {
             this.connect();
           }
@@ -197,8 +188,7 @@ document.addEventListener('alpine:init', () => {
           activeSources: this.activeSources,
           pollFrequency: this.pollFrequency,
           maxLogBuffer: this.maxLogBuffer,
-          logLevelFilter: this.logLevelFilter,
-          categoryPreset: this.categoryPreset
+          logLevelFilter: this.logLevelFilter
         }));
       } catch {}
     },
@@ -276,12 +266,6 @@ document.addEventListener('alpine:init', () => {
       return count;
     },
 
-    get categoryPresetOptions() {
-      return Object.entries(this._categories).map(([id, cat]) => ({
-        id,
-        name: cat.name || id
-      }));
-    },
 
     get filteredLogs() {
       let result = this.logs;
@@ -311,20 +295,6 @@ document.addEventListener('alpine:init', () => {
       if (this.transactionIdFilter) {
         const txn = this.transactionIdFilter.toLowerCase();
         result = result.filter(l => l.transactionId && l.transactionId.toLowerCase().includes(txn));
-      }
-
-      // Category preset filter (matches on source + logger prefix)
-      if (this.categoryPreset && this._categories[this.categoryPreset]) {
-        const cat = this._categories[this.categoryPreset];
-        const sources = cat.sources || [];
-        const loggers = cat.loggers || [];
-        result = result.filter(l => {
-          if (sources.length > 0 && sources.includes(l.source)) return true;
-          if (l.logger && loggers.length > 0) {
-            return loggers.some(prefix => l.logger.startsWith(prefix));
-          }
-          return false;
-        });
       }
 
       return result;
