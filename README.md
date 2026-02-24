@@ -18,8 +18,10 @@ Key capabilities:
 - **Unified AM + IDM view** — see all logs interleaved, newest first
 - **14 noise filter categories** — suppress known noisy loggers by category (Session, Config, REST, Health, LDAP, etc.) with per-category toggle
 - **Smart log messages** — contextual message extraction showing event name, principal, journey/tree name, outcome, HTTP method/path, and more
-- **Category presets** — quick-filter by Authentication, Access, Federation, OAuth, Scripting, Policy, Session, Config, Activity, or IDM Sync — matching on both log source and logger
-- **Historical search** — query logs by time range with pagination
+- **Transaction tracing** — hover any transaction ID to reveal a trace badge; click to instantly filter all logs for that transaction
+- **Historical search** — query logs by time range with pagination, with a clear banner to resume live tailing
+- **Saved connections** — save and manage multiple tenant connections with masked credentials
+- **Session persistence** — connection state and filters persist across page refresh
 - **Export** — download logs as JSON, human-readable text, or CSV
 
 ## Prerequisites
@@ -146,6 +148,17 @@ There are two ways to provide your tenant credentials:
 
 Once connected, live log tailing begins automatically.
 
+### Saved Connections
+
+If you manage multiple tenants, you can save and switch between connections:
+
+1. Enter your tenant credentials and check **Remember connection**
+2. The connection is saved to your browser's local storage with the API secret masked
+3. Open the **Saved Connections** dropdown to switch between saved tenants
+4. Delete saved connections you no longer need
+
+> **Note:** Your connection state (tenant URL, credentials, filters) also persists across page refreshes via session storage, so you won't lose your place if you accidentally close the tab.
+
 ## Usage Guide
 
 ### Live Log Tailing
@@ -168,9 +181,19 @@ Use the filter bar to narrow down logs:
 | **Sources** | Select which log sources to include (AM, IDM, or specific sub-sources) |
 | **Level** | Filter by log level (ERROR, WARNING, INFO, DEBUG) |
 | **Search** | Free-text search across log messages, loggers, and full payloads |
-| **Transaction ID** | Filter by a specific transaction ID — click any txnId in the log to auto-filter |
+| **Transaction ID** | Filter by a specific transaction ID — hover any transaction ID in the log viewer to see a trace badge, then click to auto-filter |
 | **Noise Filter** | Dropdown with 14 categories of noisy loggers grouped by severity (High/Medium/Low/IDM). Toggle individual categories on/off. Defaults: High + Medium + IDM enabled, Low disabled |
-| **Category Presets** | Quick-filter by log type: Authentication, Access, Federation, OAuth, Scripting, Policy, Session, Config, Activity, IDM Sync. Matches on both log source and logger prefix |
+
+### Transaction Tracing
+
+Transaction IDs link related log entries across AM and IDM. To trace a transaction:
+
+1. **Hover** over any transaction ID in the log viewer — it transforms into an orange **Trace** badge
+2. **Click** the badge to filter all logs to that transaction ID
+3. The Transaction ID filter input highlights orange when active
+4. Click the **×** button on the filter input to clear and return to the full log view
+
+This is especially useful for following authentication flows, OAuth token exchanges, or IDM sync operations that span multiple log entries.
 
 ### Historical Search
 
@@ -180,7 +203,8 @@ Press **Ctrl+H** or click the clock icon to open the historical search panel:
 2. Optionally filter by Transaction ID or add a custom query filter
 3. Click **Search** to fetch results
 4. Use **Load More** for paginated results (the API returns up to 1000 logs per page)
-5. Click **Resume Tailing** to switch back to live mode
+5. A prominent banner shows you are viewing historical results — click **Resume Live Tailing** to switch back
+6. The status bar shows a **Historical** indicator (amber) when live tailing is paused
 
 > **Note:** The PingAIC API limits historical queries to 24-hour windows. For longer ranges, the tool automatically splits the request into sequential 24-hour chunks.
 
@@ -206,7 +230,7 @@ Click the gear icon to access settings:
 | **Max Buffer Size** | Maximum logs held in browser memory (1,000–10,000) | 5000 |
 | **Auto-scroll** | Automatically scroll to newest logs | On |
 | **Noise Categories** | View and toggle all 14 noise categories with expandable logger lists for each | — |
-| **Muted Loggers** | Manually mute individual loggers (also available by hovering a logger in the log viewer) | — |
+| **Muted Loggers** | Manually mute individual loggers — you can also hover any logger name in the log viewer and click the mute icon to quickly silence it | — |
 
 ## Configuration Reference
 
@@ -220,6 +244,8 @@ Click the gear icon to access settings:
 | `API_KEY_SECRET` | Log API secret from tenant settings | — |
 | `POLL_FREQUENCY` | Default seconds between tail polls | `10` |
 | `MAX_LOG_BUFFER` | Default max logs in browser memory | `5000` |
+| `TEST_USER` | Username for E2E tests (required for `npm run test:e2e`) | — |
+| `TEST_PASS` | Password for E2E tests (required for `npm run test:e2e`) | — |
 
 ### Available Log Sources
 
@@ -235,6 +261,36 @@ Click the gear icon to access settings:
 | `idm-activity` | Identity object changes |
 | `idm-access` | IDM access events |
 | `idm-core` | Core IDM debug logs |
+
+## Testing
+
+### End-to-End Tests
+
+The E2E test suite makes real API calls against your PingOne AIC tenant to verify the full stack — REST API, WebSocket tailing, monitoring API, noise filtering, and message extraction.
+
+**Prerequisites:**
+- The server must be running (`npm start`)
+- Set `TEST_USER` and `TEST_PASS` in your `.env` file (a valid PingOne AIC user in the alpha realm)
+- `TENANT_URL`, `API_KEY_ID`, and `API_KEY_SECRET` must also be set
+
+**Run the tests:**
+
+```bash
+npm run test:e2e
+```
+
+The suite runs 48 tests across 6 groups:
+
+| Group | What it tests |
+|-------|---------------|
+| **REST API** | Server health, config endpoint, sources endpoint, connection/disconnection |
+| **Tenant Activity** | AM authentication (success + failure), IDM user queries, OAuth well-known |
+| **Monitoring API** | Direct log tail/query against PingAIC API, rate limit headers |
+| **WebSocket Tailing** | Connect, authenticate, start/stop tailing, receive logs via WebSocket |
+| **Noise Filters** | All 14 noise categories filter the correct loggers (exact + prefix matching) |
+| **Message Extraction** | Contextual message summaries for authentication, access, activity, and other log types |
+
+> **Note:** Tests require a live tenant with real activity. Some tests generate activity (authentication attempts, IDM queries) to ensure logs are available for verification.
 
 ## Architecture
 
@@ -252,10 +308,12 @@ pingaic-log-viewer/
 │   │   └── tailManager.js    # Per-client WebSocket polling manager
 │   ├── routes/
 │   │   ├── connection.js     # POST /api/connect
-│   │   └── logs.js           # Search, config, sources, categories endpoints
+│   │   └── logs.js           # Search, config, sources endpoints
 │   └── data/
-│       ├── categories.json   # 14 noise filter categories + category preset definitions
+│       ├── categories.json   # 14 noise filter category definitions
 │       └── sources.json      # Log source metadata
+├── tests/
+│   └── e2e.test.js           # End-to-end test suite (48 tests)
 └── public/
     ├── index.html            # Single-page application
     ├── css/app.css           # Custom styles
