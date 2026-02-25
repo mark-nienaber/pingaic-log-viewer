@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PingAIC Log Viewer — Comprehensive E2E Test Harness
+ * AIC Sentinel - Comprehensive E2E Test Harness
  *
  * Generates real tenant activity (AM auth, IDM ops, etc.) and verifies
  * the log viewer captures, processes, filters, and displays everything correctly.
@@ -1036,7 +1036,7 @@ async function group6_messageExtraction() {
 // ═════════════════════════════════════════════════════════════════════════════
 async function main() {
   log(`\n${C.bold}${C.magenta}╔══════════════════════════════════════════════════════════════╗${C.reset}`);
-  log(`${C.bold}${C.magenta}║       PingAIC Log Viewer — E2E Test Harness                 ║${C.reset}`);
+  log(`${C.bold}${C.magenta}║       AIC Sentinel - E2E Test Harness                       ║${C.reset}`);
   log(`${C.bold}${C.magenta}╚══════════════════════════════════════════════════════════════╝${C.reset}`);
   log(`\n${C.dim}  Tenant:    ${TENANT}${C.reset}`);
   log(`${C.dim}  App:       ${APP_BASE}${C.reset}`);

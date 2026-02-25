@@ -101,10 +101,10 @@ document.addEventListener('alpine:init', () => {
 
       // Load saved connections
       try {
-        const saved = localStorage.getItem('pingaic-connections');
+        const saved = localStorage.getItem('aic-sentinel-connections');
         if (saved) this.savedConnections = JSON.parse(saved);
         // Migrate old single-connection format
-        const legacy = localStorage.getItem('pingaic-connection');
+        const legacy = localStorage.getItem('aic-sentinel-connection');
         if (legacy && this.savedConnections.length === 0) {
           const conn = JSON.parse(legacy);
           if (conn.origin) {
@@ -114,8 +114,8 @@ document.addEventListener('alpine:init', () => {
               apiKey: conn.apiKey || '',
               apiSecret: conn.apiSecret || ''
             });
-            localStorage.setItem('pingaic-connections', JSON.stringify(this.savedConnections));
-            localStorage.removeItem('pingaic-connection');
+            localStorage.setItem('aic-sentinel-connections', JSON.stringify(this.savedConnections));
+            localStorage.removeItem('aic-sentinel-connection');
           }
         }
       } catch {}
@@ -127,7 +127,7 @@ document.addEventListener('alpine:init', () => {
         if (data.noiseCategories) {
           this.noiseCategories = data.noiseCategories;
           // Initialize enabled categories from localStorage or defaults
-          const saved = localStorage.getItem('pingaic-noise-categories');
+          const saved = localStorage.getItem('aic-sentinel-noise-categories');
           if (saved) {
             this.enabledNoiseCategories = JSON.parse(saved);
           } else {
@@ -142,13 +142,13 @@ document.addEventListener('alpine:init', () => {
 
       // Restore custom noise loggers from localStorage
       try {
-        const saved = localStorage.getItem('pingaic-custom-noise');
+        const saved = localStorage.getItem('aic-sentinel-custom-noise');
         if (saved) this.customNoiseLoggers = JSON.parse(saved);
       } catch {}
 
       // Restore custom headers from sessionStorage
       try {
-        const saved = sessionStorage.getItem('pingaic-custom-headers');
+        const saved = sessionStorage.getItem('aic-sentinel-custom-headers');
         if (saved) {
           this.customHeaders = JSON.parse(saved);
           this.showCustomHeaders = this.customHeaders.length > 0;
@@ -162,7 +162,7 @@ document.addEventListener('alpine:init', () => {
 
       // Auto-reconnect from saved session
       try {
-        const session = sessionStorage.getItem('pingaic-session');
+        const session = sessionStorage.getItem('aic-sentinel-session');
         if (session) {
           const s = JSON.parse(session);
           this.origin = s.origin || this.origin;
@@ -181,7 +181,7 @@ document.addEventListener('alpine:init', () => {
 
     _saveSession() {
       try {
-        sessionStorage.setItem('pingaic-session', JSON.stringify({
+        sessionStorage.setItem('aic-sentinel-session', JSON.stringify({
           origin: this.origin,
           apiKey: this.apiKey,
           apiSecret: this.apiSecret,
@@ -194,7 +194,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     _clearSession() {
-      sessionStorage.removeItem('pingaic-session');
+      sessionStorage.removeItem('aic-sentinel-session');
     },
 
     // Noise category helpers
@@ -246,7 +246,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     _saveNoisePreferences() {
-      localStorage.setItem('pingaic-noise-categories', JSON.stringify(this.enabledNoiseCategories));
+      localStorage.setItem('aic-sentinel-noise-categories', JSON.stringify(this.enabledNoiseCategories));
     },
 
     _sendNoiseUpdate() {
@@ -333,7 +333,7 @@ document.addEventListener('alpine:init', () => {
 
         // Save custom headers to sessionStorage
         if (this.customHeaders.length > 0) {
-          sessionStorage.setItem('pingaic-custom-headers', JSON.stringify(this.customHeaders));
+          sessionStorage.setItem('aic-sentinel-custom-headers', JSON.stringify(this.customHeaders));
         }
 
         this._saveSession();
@@ -490,7 +490,7 @@ document.addEventListener('alpine:init', () => {
       } else {
         this.savedConnections.push(conn);
       }
-      localStorage.setItem('pingaic-connections', JSON.stringify(this.savedConnections));
+      localStorage.setItem('aic-sentinel-connections', JSON.stringify(this.savedConnections));
     },
 
     loadSavedConnection(idx) {
@@ -505,7 +505,7 @@ document.addEventListener('alpine:init', () => {
 
     deleteSavedConnection(idx) {
       this.savedConnections.splice(idx, 1);
-      localStorage.setItem('pingaic-connections', JSON.stringify(this.savedConnections));
+      localStorage.setItem('aic-sentinel-connections', JSON.stringify(this.savedConnections));
       if (this.selectedConnectionIdx === idx) this.selectedConnectionIdx = -1;
     },
 
@@ -634,7 +634,7 @@ document.addEventListener('alpine:init', () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `pingaic-logs-${ts}.${ext}`;
+      a.download = `aic-sentinel-logs-${ts}.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
       this.showExport = false;
@@ -642,7 +642,7 @@ document.addEventListener('alpine:init', () => {
 
     _exportAsText(data) {
       let lines = [
-        '=== PingAIC Log Export ===',
+        '=== AIC Sentinel Log Export ===',
         'Tenant: ' + this.origin,
         'Exported: ' + new Date().toISOString(),
         'Source: ' + this.activeSources.join(', '),
@@ -685,12 +685,12 @@ document.addEventListener('alpine:init', () => {
     muteLogger(loggerName) {
       if (!loggerName || this.customNoiseLoggers.includes(loggerName)) return;
       this.customNoiseLoggers.push(loggerName);
-      localStorage.setItem('pingaic-custom-noise', JSON.stringify(this.customNoiseLoggers));
+      localStorage.setItem('aic-sentinel-custom-noise', JSON.stringify(this.customNoiseLoggers));
     },
 
     unmuteLogger(loggerName) {
       this.customNoiseLoggers = this.customNoiseLoggers.filter(l => l !== loggerName);
-      localStorage.setItem('pingaic-custom-noise', JSON.stringify(this.customNoiseLoggers));
+      localStorage.setItem('aic-sentinel-custom-noise', JSON.stringify(this.customNoiseLoggers));
     },
 
     isLoggerMuted(loggerName) {

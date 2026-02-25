@@ -1,5 +1,5 @@
 {
-  "name": "pingaic-log-viewer",
+  "name": "aic-sentinel",
   "version": "1.0.0",
   "description": "Web-based PingOne AIC log viewer with live tailing, historical search, and noise filtering",
   "main": "server.js",

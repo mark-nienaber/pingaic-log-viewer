@@ -1,4 +1,4 @@
-# PingAIC Log Viewer
+# AIC Sentinel
 
 **Version:** 1.0.0
 **Author:** Mark Nienaber
@@ -11,7 +11,7 @@ A web-based log viewer for PingOne Advanced Identity Cloud (AIC) with live taili
 
 ## Overview
 
-PingAIC Log Viewer provides a browser-based dashboard for monitoring and searching PingOne Advanced Identity Cloud logs. Unlike CLI-based tools that separate AM and IDM log streams, this tool presents a unified, filterable view of all log sources in a single interface.
+AIC Sentinel provides a browser-based dashboard for monitoring and searching PingOne Advanced Identity Cloud logs. Unlike CLI-based tools that separate AM and IDM log streams, this tool presents a unified, filterable view of all log sources in a single interface.
 
 Key capabilities:
 - **Real-time log streaming** via WebSocket with configurable poll frequency
@@ -34,7 +34,7 @@ That said, the outstanding [**Frodo CLI**](https://github.com/rockcarver/frodo-c
 - **[Frodo Library (frodo-lib)](https://github.com/rockcarver/frodo-lib)** - The underlying Node.js library that powers Frodo CLI. Provides a comprehensive, typed API for all AIC operations including authentication, configuration management, and log access.
 - **[Frodo CLI Documentation](https://github.com/rockcarver/frodo-cli/blob/main/README.md)** - Full usage guide, command reference, and examples.
 
-A future version of pingaic-log-viewer may integrate with frodo-lib to unlock capabilities beyond log monitoring - such as inspecting journeys, scripts, and OAuth2 clients referenced in log entries, or supporting service account authentication alongside API keys. For now, the pure REST approach keeps the tool focused on what it does best: fast, visual log debugging.
+A future version of AIC Sentinel may integrate with frodo-lib to unlock capabilities beyond log monitoring - such as inspecting journeys, scripts, and OAuth2 clients referenced in log entries, or supporting service account authentication alongside API keys. For now, the pure REST approach keeps the tool focused on what it does best: fast, visual log debugging.
 
 Also worth noting is [**fidc-debug-tools**](https://github.com/vscheuber/fidc-debug-tools) by Volker Scheuber, which was the original inspiration for this project. It provides CLI-based log tailing with configurable filters and is great when you want to pipe output to `jq` or integrate with other shell tools.
 
@@ -65,7 +65,7 @@ You need access to a PingOne AIC tenant with permission to create monitoring API
 
 ### 3. Log API Key and Secret
 
-You must create a Log API key/secret pair in your PingAIC tenant:
+You must create a Log API key/secret pair in your AIC tenant:
 
 1. Log in to your PingOne AIC admin console
 2. Navigate to **Tenant Settings** > **Log API Keys**
@@ -79,8 +79,8 @@ You must create a Log API key/secret pair in your PingAIC tenant:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/mark-nienaber/pingaic-log-viewer.git
-cd pingaic-log-viewer
+git clone https://github.com/mark-nienaber/aic-sentinel.git
+cd aic-sentinel
 ```
 
 ### 2. Install Dependencies
@@ -136,7 +136,7 @@ npm run dev
 Once started, you will see:
 
 ```
-PingAIC Log Viewer running at http://localhost:3000
+AIC Sentinel running at http://localhost:3000
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -231,7 +231,7 @@ Press **Ctrl+H** or click the clock icon to open the historical search panel:
 5. A prominent banner shows you are viewing historical results - click **Resume Live Tailing** to switch back
 6. The status bar shows a **Historical** indicator (amber) when live tailing is paused
 
-> **Note:** The PingAIC API limits historical queries to 24-hour windows. For longer ranges, the tool automatically splits the request into sequential 24-hour chunks.
+> **Note:** The AIC Monitoring API limits historical queries to 24-hour windows. For longer ranges, the tool automatically splits the request into sequential 24-hour chunks.
 > 
 <img width="384" height="447" alt="Screenshot 2026-02-25 at 3 31 46 pm" src="https://github.com/user-attachments/assets/7f697fed-b319-4a96-bfba-fd5e252ac23d" />
 
@@ -273,7 +273,7 @@ Click the gear icon to access settings:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | Server listen port | `3000` |
-| `TENANT_URL` | Full URL of your PingAIC tenant (e.g., `https://tenant.forgeblocks.com`) | - |
+| `TENANT_URL` | Full URL of your AIC tenant (e.g., `https://tenant.forgeblocks.com`) | - |
 | `API_KEY_ID` | Log API key ID from tenant settings | - |
 | `API_KEY_SECRET` | Log API secret from tenant settings | - |
 | `POLL_FREQUENCY` | Default seconds between tail polls | `10` |
@@ -321,7 +321,7 @@ The suite runs 48 tests across 6 groups:
 |-------|---------------|
 | **REST API** | Server health, config endpoint, sources endpoint, connection/disconnection |
 | **Tenant Activity** | AM authentication (success + failure), IDM user queries, OAuth well-known |
-| **Monitoring API** | Direct log tail/query against PingAIC API, rate limit headers |
+| **Monitoring API** | Direct log tail/query against AIC Monitoring API, rate limit headers |
 | **WebSocket Tailing** | Connect, authenticate, start/stop tailing, receive logs via WebSocket |
 | **Noise Filters** | All 14 noise categories filter the correct loggers (exact + prefix matching) |
 | **Message Extraction** | Contextual message summaries for authentication, access, activity, and other log types |
@@ -331,14 +331,14 @@ The suite runs 48 tests across 6 groups:
 ## Architecture
 
 ```
-pingaic-log-viewer/
+aic-sentinel/
 ├── server.js                 # Express + WebSocket entry point
 ├── package.json
 ├── .env.example              # Configuration template
 ├── .env                      # Your config (gitignored)
 ├── src/
 │   ├── api/
-│   │   ├── logClient.js      # PingAIC HTTP client (tail + query)
+│   │   ├── logClient.js      # AIC Monitoring API client (tail + query)
 │   │   └── rateLimiter.js    # Rate limit tracking (X-RateLimit headers)
 │   ├── ws/
 │   │   └── tailManager.js    # Per-client WebSocket polling manager
@@ -401,7 +401,7 @@ PORT=3001 npm start
 
 ### Rate limiting
 
-The PingAIC API allows 60 requests per minute. The status bar shows current usage. If you hit the limit, the tool automatically backs off and resumes when the limit resets.
+The AIC Monitoring API allows 60 requests per minute. The status bar shows current usage. If you hit the limit, the tool automatically backs off and resumes when the limit resets.
 
 ## License
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PingAIC Log Viewer</title>
+  <title>AIC Sentinel</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' rx='8' fill='%23f26522'/><path d='M12 14h16v3H12zM12 20h16v3H12zM12 26h12v3H12z' fill='white'/></svg>">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -32,7 +32,7 @@
             <rect width="40" height="40" rx="8" fill="#f26522"/>
             <path d="M12 14h16v3H12zM12 20h16v3H12zM12 26h12v3H12z" fill="white"/>
           </svg>
-          <h1 class="text-3xl font-bold text-white">PingAIC <span class="text-ping-orange">Log Viewer</span></h1>
+          <h1 class="text-3xl font-bold text-white">AIC <span class="text-ping-orange">Sentinel</span></h1>
         </div>
         <p class="text-slate-400 text-sm">Connect to your PingOne Advanced Identity Cloud tenant</p>
       </div>
@@ -135,7 +135,7 @@
           <rect width="40" height="40" rx="8" fill="#f26522"/>
           <path d="M12 14h16v3H12zM12 20h16v3H12zM12 26h12v3H12z" fill="white"/>
         </svg>
-        <span class="font-semibold text-white text-sm">PingAIC <span class="text-ping-orange">Log Viewer</span></span>
+        <span class="font-semibold text-white text-sm">AIC <span class="text-ping-orange">Sentinel</span></span>
       </div>
 
       <div class="flex items-center gap-4">
@@ -541,7 +541,7 @@
           </template>
         </div>
         <div x-show="customNoiseLoggers.length === 0" class="text-[10px] text-slate-600 italic">No custom muted loggers</div>
-        <button x-show="customNoiseLoggers.length > 0" @click="customNoiseLoggers = []; localStorage.setItem('pingaic-custom-noise', '[]')"
+        <button x-show="customNoiseLoggers.length > 0" @click="customNoiseLoggers = []; localStorage.setItem('aic-sentinel-custom-noise', '[]')"
           class="text-[10px] text-slate-500 hover:text-red-400 mt-2">Clear all</button>
       </div>
 

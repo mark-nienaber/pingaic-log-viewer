@@ -25,5 +25,5 @@ wss.on('connection', (ws) => {
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 server.listen(PORT, HOST, () => {
-  console.log(`PingAIC Log Viewer running at http://${HOST}:${PORT}`);
+  console.log(`AIC Sentinel running at http://${HOST}:${PORT}`);
 });
