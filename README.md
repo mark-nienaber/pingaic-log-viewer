@@ -15,26 +15,26 @@ PingAIC Log Viewer provides a browser-based dashboard for monitoring and searchi
 
 Key capabilities:
 - **Real-time log streaming** via WebSocket with configurable poll frequency
-- **Unified AM + IDM view** — see all logs interleaved, newest first
-- **14 noise filter categories** — suppress known noisy loggers by category (Session, Config, REST, Health, LDAP, etc.) with per-category toggle
-- **Smart log messages** — contextual message extraction showing event name, principal, journey/tree name, outcome, HTTP method/path, and more
-- **Transaction tracing** — hover any transaction ID to reveal a trace badge; click to instantly filter all logs for that transaction
-- **Historical search** — query logs by time range with pagination, with a clear banner to resume live tailing
-- **Saved connections** — save and manage multiple tenant connections with masked credentials
-- **Session persistence** — connection state and filters persist across page refresh
-- **Export** — download logs as JSON, human-readable text, or CSV
+- **Unified AM + IDM view** - see all logs interleaved, newest first
+- **14 noise filter categories** - suppress known noisy loggers by category (Session, Config, REST, Health, LDAP, etc.) with per-category toggle
+- **Smart log messages** - contextual message extraction showing event name, principal, journey/tree name, outcome, HTTP method/path, and more
+- **Transaction tracing** - hover any transaction ID to reveal a trace badge; click to instantly filter all logs for that transaction
+- **Historical search** - query logs by time range with pagination, with a clear banner to resume live tailing
+- **Saved connections** - save and manage multiple tenant connections with masked credentials
+- **Session persistence** - connection state and filters persist across page refresh
+- **Export** - download logs as JSON, human-readable text, or CSV
 
 ## Design Philosophy & Related Tools
 
-This tool intentionally uses **pure REST API calls** against the [PingOne AIC Monitoring API](https://docs.pingidentity.com/pingoneaic/latest/tenants/audit-debug-logs-pull.html) with only 3 production dependencies (Express, ws, dotenv). This keeps the codebase small, transparent, and easy to audit — the entire HTTP client is under 170 lines. There is no SDK dependency, no build pipeline, and no framework beyond what's needed for real-time log streaming.
+This tool intentionally uses **pure REST API calls** against the [PingOne AIC Monitoring API](https://docs.pingidentity.com/pingoneaic/latest/tenants/audit-debug-logs-pull.html) with only 3 production dependencies (Express, ws, dotenv). This keeps the codebase small, transparent, and easy to audit - the entire HTTP client is under 170 lines. There is no SDK dependency, no build pipeline, and no framework beyond what's needed for real-time log streaming.
 
-That said, the outstanding [**Frodo CLI**](https://github.com/rockcarver/frodo-cli) and [**Frodo Library (frodo-lib)**](https://github.com/rockcarver/frodo-lib) by the Frodo team deserve special mention. Frodo is a comprehensive, battle-tested toolkit for managing PingOne AIC / ForgeRock environments — covering journeys, scripts, OAuth2 clients, IDM configuration, secrets, variables, and much more — including log tailing and search capabilities. If you're working with AIC environments, Frodo should be in your toolkit:
+That said, the outstanding [**Frodo CLI**](https://github.com/rockcarver/frodo-cli) and [**Frodo Library (frodo-lib)**](https://github.com/rockcarver/frodo-lib) by the Frodo team deserve special mention. Frodo is a comprehensive, battle-tested toolkit for managing PingOne AIC / ForgeRock environments - covering journeys, scripts, OAuth2 clients, IDM configuration, secrets, variables, and much more - including log tailing and search capabilities. If you're working with AIC environments, Frodo should be in your toolkit:
 
-- **[Frodo CLI](https://github.com/rockcarver/frodo-cli)** — Command-line interface for managing AIC environments, including log access. Excellent for automation, CI/CD pipelines, and power users who prefer the terminal.
-- **[Frodo Library (frodo-lib)](https://github.com/rockcarver/frodo-lib)** — The underlying Node.js library that powers Frodo CLI. Provides a comprehensive, typed API for all AIC operations including authentication, configuration management, and log access.
-- **[Frodo CLI Documentation](https://github.com/rockcarver/frodo-cli/blob/main/README.md)** — Full usage guide, command reference, and examples.
+- **[Frodo CLI](https://github.com/rockcarver/frodo-cli)** - Command-line interface for managing AIC environments, including log access. Excellent for automation, CI/CD pipelines, and power users who prefer the terminal.
+- **[Frodo Library (frodo-lib)](https://github.com/rockcarver/frodo-lib)** - The underlying Node.js library that powers Frodo CLI. Provides a comprehensive, typed API for all AIC operations including authentication, configuration management, and log access.
+- **[Frodo CLI Documentation](https://github.com/rockcarver/frodo-cli/blob/main/README.md)** - Full usage guide, command reference, and examples.
 
-A future version of pingaic-log-viewer may integrate with frodo-lib to unlock capabilities beyond log monitoring — such as inspecting journeys, scripts, and OAuth2 clients referenced in log entries, or supporting service account authentication alongside API keys. For now, the pure REST approach keeps the tool focused on what it does best: fast, visual log debugging.
+A future version of pingaic-log-viewer may integrate with frodo-lib to unlock capabilities beyond log monitoring - such as inspecting journeys, scripts, and OAuth2 clients referenced in log entries, or supporting service account authentication alongside API keys. For now, the pure REST approach keeps the tool focused on what it does best: fast, visual log debugging.
 
 Also worth noting is [**fidc-debug-tools**](https://github.com/vscheuber/fidc-debug-tools) by Volker Scheuber, which was the original inspiration for this project. It provides CLI-based log tailing with configurable filters and is great when you want to pipe output to `jq` or integrate with other shell tools.
 
@@ -70,7 +70,7 @@ You must create a Log API key/secret pair in your PingAIC tenant:
 1. Log in to your PingOne AIC admin console
 2. Navigate to **Tenant Settings** > **Log API Keys**
 3. Click **New Log API Key**
-4. Copy both the **Key ID** and **Secret** — the secret is only shown once
+4. Copy both the **Key ID** and **Secret** - the secret is only shown once
 
 > **Note:** The Log API provides read-only access to audit and debug logs. It does not grant access to modify tenant configuration.
 
@@ -90,9 +90,9 @@ npm install
 ```
 
 This installs only 3 production dependencies:
-- `express` — HTTP server and static file serving
-- `ws` — WebSocket support for real-time streaming
-- `dotenv` — Environment variable loading
+- `express` - HTTP server and static file serving
+- `ws` - WebSocket support for real-time streaming
+- `dotenv` - Environment variable loading
 
 ### 3. Configure Environment (Optional)
 
@@ -158,10 +158,10 @@ There are two ways to provide your tenant credentials:
 ### Option 2: Pre-configure via `.env` File
 
 1. Copy `.env.example` to `.env` and fill in your credentials (see [Configure Environment](#3-configure-environment-optional))
-2. Start the server — the connection form will be pre-filled with your `.env` values
+2. Start the server - the connection form will be pre-filled with your `.env` values
 3. Click **Connect**
 
-> **Tip:** You can mix both approaches — pre-fill defaults in `.env` and override them in the UI as needed.
+> **Tip:** You can mix both approaches - pre-fill defaults in `.env` and override them in the UI as needed.
 
 Once connected, live log tailing begins automatically.
 
@@ -184,10 +184,10 @@ If you manage multiple tenants, you can save and switch between connections:
 
 - Logs stream in real-time from your tenant via WebSocket
 - By default, both AM and IDM logs are shown in a unified view
-- **Newest logs appear at the top** — no need to scroll down to see what just happened
+- **Newest logs appear at the top** - no need to scroll down to see what just happened
 - Logs are color-coded by source: **amber** for AM, **cyan** for IDM
 - Log levels are color-coded: **red** = ERROR, **yellow** = WARNING, **blue** = INFO, **gray** = DEBUG
-- The message column shows contextual summaries: event name, principal, journey/tree name, node outcome, HTTP request path, and more — making it easy to find relevant logs before expanding
+- The message column shows contextual summaries: event name, principal, journey/tree name, node outcome, HTTP request path, and more - making it easy to find relevant logs before expanding
 - Click any log row to expand it and see the full JSON payload with syntax highlighting
 - Auto-scroll keeps you at the top (newest logs); scroll down to browse history, then click **Latest logs** to return
 
@@ -200,7 +200,7 @@ Use the filter bar to narrow down logs:
 | **Sources** | Select which log sources to include (AM, IDM, or specific sub-sources) |
 | **Level** | Filter by log level (ERROR, WARNING, INFO, DEBUG) |
 | **Search** | Free-text search across log messages, loggers, and full payloads |
-| **Transaction ID** | Filter by a specific transaction ID — hover any transaction ID in the log viewer to see a trace badge, then click to auto-filter |
+| **Transaction ID** | Filter by a specific transaction ID - hover any transaction ID in the log viewer to see a trace badge, then click to auto-filter |
 | **Noise Filter** | Dropdown with 14 categories of noisy loggers grouped by severity (High/Medium/Low/IDM). Toggle individual categories on/off. Defaults: High + Medium + IDM enabled, Low disabled |
 
 <img width="579" height="634" alt="Screenshot 2026-02-25 at 3 28 17 pm" src="https://github.com/user-attachments/assets/65c6d31e-3c46-493c-b2a9-2dd0e462e3c2" />
@@ -210,7 +210,7 @@ Use the filter bar to narrow down logs:
 
 Transaction IDs link related log entries across AM and IDM. To trace a transaction:
 
-1. **Hover** over any transaction ID in the log viewer — it transforms into an orange **Trace** badge
+1. **Hover** over any transaction ID in the log viewer - it transforms into an orange **Trace** badge
 2. **Click** the badge to filter all logs to that transaction ID
 3. The Transaction ID filter input highlights orange when active
 4. Click the **×** button on the filter input to clear and return to the full log view
@@ -228,7 +228,7 @@ Press **Ctrl+H** or click the clock icon to open the historical search panel:
 2. Optionally filter by Transaction ID or add a custom query filter
 3. Click **Search** to fetch results
 4. Use **Load More** for paginated results (the API returns up to 1000 logs per page)
-5. A prominent banner shows you are viewing historical results — click **Resume Live Tailing** to switch back
+5. A prominent banner shows you are viewing historical results - click **Resume Live Tailing** to switch back
 6. The status bar shows a **Historical** indicator (amber) when live tailing is paused
 
 > **Note:** The PingAIC API limits historical queries to 24-hour windows. For longer ranges, the tool automatically splits the request into sequential 24-hour chunks.
@@ -260,8 +260,8 @@ Click the gear icon to access settings:
 | **Poll Frequency** | Seconds between API polls (2–30) | 10 |
 | **Max Buffer Size** | Maximum logs held in browser memory (1,000–10,000) | 5000 |
 | **Auto-scroll** | Automatically scroll to newest logs | On |
-| **Noise Categories** | View and toggle all 14 noise categories with expandable logger lists for each | — |
-| **Muted Loggers** | Manually mute individual loggers — you can also hover any logger name in the log viewer and click the mute icon to quickly silence it | — |
+| **Noise Categories** | View and toggle all 14 noise categories with expandable logger lists for each | - |
+| **Muted Loggers** | Manually mute individual loggers - you can also hover any logger name in the log viewer and click the mute icon to quickly silence it | - |
 
 <img width="323" height="882" alt="Screenshot 2026-02-25 at 3 32 43 pm" src="https://github.com/user-attachments/assets/71b16fed-65f8-4855-acb3-c4f81e6eb7e0" />
 
@@ -273,13 +273,13 @@ Click the gear icon to access settings:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | Server listen port | `3000` |
-| `TENANT_URL` | Full URL of your PingAIC tenant (e.g., `https://tenant.forgeblocks.com`) | — |
-| `API_KEY_ID` | Log API key ID from tenant settings | — |
-| `API_KEY_SECRET` | Log API secret from tenant settings | — |
+| `TENANT_URL` | Full URL of your PingAIC tenant (e.g., `https://tenant.forgeblocks.com`) | - |
+| `API_KEY_ID` | Log API key ID from tenant settings | - |
+| `API_KEY_SECRET` | Log API secret from tenant settings | - |
 | `POLL_FREQUENCY` | Default seconds between tail polls | `10` |
 | `MAX_LOG_BUFFER` | Default max logs in browser memory | `5000` |
-| `TEST_USER` | Username for E2E tests (required for `npm run test:e2e`) | — |
-| `TEST_PASS` | Password for E2E tests (required for `npm run test:e2e`) | — |
+| `TEST_USER` | Username for E2E tests (required for `npm run test:e2e`) | - |
+| `TEST_PASS` | Password for E2E tests (required for `npm run test:e2e`) | - |
 
 ### Available Log Sources
 
@@ -302,7 +302,7 @@ Click the gear icon to access settings:
 
 ### End-to-End Tests
 
-The E2E test suite makes real API calls against your PingOne AIC tenant to verify the full stack — REST API, WebSocket tailing, monitoring API, noise filtering, and message extraction.
+The E2E test suite makes real API calls against your PingOne AIC tenant to verify the full stack - REST API, WebSocket tailing, monitoring API, noise filtering, and message extraction.
 
 **Prerequisites:**
 - The server must be running (`npm start`)
@@ -361,9 +361,9 @@ pingaic-log-viewer/
 ```
 
 - **Backend:** Node.js with Express for HTTP + ws library for WebSocket streaming
-- **Frontend:** Tailwind CSS + Alpine.js loaded via CDN — no build step required
+- **Frontend:** Tailwind CSS + Alpine.js loaded via CDN - no build step required
 - **API Integration:** Uses the [PingOne AIC Monitoring API](https://docs.pingidentity.com/pingoneaic/tenants/audit-debug-logs-pull.html) with rate limit awareness (60 requests/minute)
-- **Only 3 production dependencies** — lightweight and easy to audit
+- **Only 3 production dependencies** - lightweight and easy to audit
 
 ## Keyboard Shortcuts
 
@@ -389,7 +389,7 @@ PORT=3001 npm start
 ### Connection fails
 
 - Verify your tenant URL includes `https://` and does not have a trailing slash
-- Confirm your API Key ID and Secret are correct (secrets cannot be retrieved after creation — generate a new one if lost)
+- Confirm your API Key ID and Secret are correct (secrets cannot be retrieved after creation - generate a new one if lost)
 - Ensure your network can reach the tenant (check firewalls, VPN, proxies)
 
 ### No logs appearing
@@ -397,7 +397,7 @@ PORT=3001 npm start
 - Ensure there is activity on your tenant generating logs
 - Check that the selected log sources are correct
 - Open the Noise Filter dropdown and try disabling some categories to see if logs are being filtered out
-- Check the rate limit indicator in the status bar — if at 0 remaining, wait for the reset
+- Check the rate limit indicator in the status bar - if at 0 remaining, wait for the reset
 
 ### Rate limiting
 
