@@ -24,6 +24,20 @@ Key capabilities:
 - **Session persistence** — connection state and filters persist across page refresh
 - **Export** — download logs as JSON, human-readable text, or CSV
 
+## Design Philosophy & Related Tools
+
+This tool intentionally uses **pure REST API calls** against the [PingOne AIC Monitoring API](https://docs.pingidentity.com/pingoneaic/latest/tenants/audit-debug-logs-pull.html) with only 3 production dependencies (Express, ws, dotenv). This keeps the codebase small, transparent, and easy to audit — the entire HTTP client is under 170 lines. There is no SDK dependency, no build pipeline, and no framework beyond what's needed for real-time log streaming.
+
+That said, the outstanding [**Frodo CLI**](https://github.com/rockcarver/frodo-cli) and [**Frodo Library (frodo-lib)**](https://github.com/rockcarver/frodo-lib) by the Frodo team deserve special mention. Frodo is a comprehensive, battle-tested toolkit for managing PingOne AIC / ForgeRock environments — covering journeys, scripts, OAuth2 clients, IDM configuration, secrets, variables, and much more — including log tailing and search capabilities. If you're working with AIC environments, Frodo should be in your toolkit:
+
+- **[Frodo CLI](https://github.com/rockcarver/frodo-cli)** — Command-line interface for managing AIC environments, including log access. Excellent for automation, CI/CD pipelines, and power users who prefer the terminal.
+- **[Frodo Library (frodo-lib)](https://github.com/rockcarver/frodo-lib)** — The underlying Node.js library that powers Frodo CLI. Provides a comprehensive, typed API for all AIC operations including authentication, configuration management, and log access.
+- **[Frodo CLI Documentation](https://github.com/rockcarver/frodo-cli/blob/main/README.md)** — Full usage guide, command reference, and examples.
+
+A future version of pingaic-log-viewer may integrate with frodo-lib to unlock capabilities beyond log monitoring — such as inspecting journeys, scripts, and OAuth2 clients referenced in log entries, or supporting service account authentication alongside API keys. For now, the pure REST approach keeps the tool focused on what it does best: fast, visual log debugging.
+
+Also worth noting is [**fidc-debug-tools**](https://github.com/vscheuber/fidc-debug-tools) by Volker Scheuber, which was the original inspiration for this project. It provides CLI-based log tailing with configurable filters and is great when you want to pipe output to `jq` or integrate with other shell tools.
+
 ## Prerequisites
 
 Before you begin, ensure you have the following:
