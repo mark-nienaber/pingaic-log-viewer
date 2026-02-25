@@ -12,10 +12,10 @@ class RateLimiter {
   }
 
   getDelay(minFrequencyMs) {
-    if (this.remaining <= 1) {
-      const now = Date.now();
-      const waitUntilReset = this.resetTime - now;
-      return Math.max(waitUntilReset > 0 ? waitUntilReset : minFrequencyMs, minFrequencyMs);
+    const now = Date.now();
+    // Only back off if remaining is low AND reset time is in the future (not stale)
+    if (this.remaining <= 1 && this.resetTime > now) {
+      return Math.max(this.resetTime - now, minFrequencyMs);
     }
     return minFrequencyMs;
   }

@@ -13,6 +13,7 @@ class TailManager {
     this._noiseSet = new Set();
     this._noisePrefixes = [];
     this._pollTimer = null;
+    this._abortController = null;
 
     // Index categories for quick lookup
     this._categoryMap = new Map();
@@ -107,13 +108,24 @@ class TailManager {
       clearTimeout(this._pollTimer);
       this._pollTimer = null;
     }
+    // Abort any in-flight HTTP request
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
+    }
+    // Clean up HTTP agent / connections
+    if (this.logClient?.destroy) {
+      this.logClient.destroy();
+    }
   }
 
   async poll() {
     if (!this.polling || this.ws.readyState !== 1) return;
 
     try {
-      const result = await this.logClient.tail(this.sources, this.cookie);
+      this._abortController = new AbortController();
+      const result = await this.logClient.tail(this.sources, this.cookie, this._abortController.signal);
+      this._abortController = null;
       this.rateLimiter.update(result.rateLimit);
 
       if (result.data.pagedResultsCookie) {
@@ -130,13 +142,29 @@ class TailManager {
       });
 
     } catch (e) {
-      const errMsg = e.data ? `API error ${e.statusCode}: ${JSON.stringify(e.data)}` : (e.error || 'Unknown error');
-      this._send({ type: 'error', error: errMsg });
-    }
+      // Don't report errors for aborted requests (normal on stop/disconnect)
+      if (e.error === 'aborted' || !this.polling) return;
 
-    // Schedule next poll
-    const delay = this.rateLimiter.getDelay(this.pollFrequency);
-    this._pollTimer = setTimeout(() => this.poll(), delay);
+      // Handle 429 rate limiting with explicit backoff
+      if (e.statusCode === 429) {
+        const backoff = (e.retryAfter || 60) * 1000;
+        this.rateLimiter.update(e.rateLimit || {});
+        try { this._send({ type: 'error', error: `Rate limited — retrying in ${e.retryAfter || 60}s` }); } catch {}
+        if (this.polling) {
+          this._pollTimer = setTimeout(() => this.poll(), backoff);
+        }
+        return;
+      }
+
+      const errMsg = e.data ? `API error ${e.statusCode}: ${JSON.stringify(e.data)}` : (e.error || 'Unknown error');
+      try { this._send({ type: 'error', error: errMsg }); } catch {}
+    } finally {
+      // Self-healing: always schedule the next poll unless stopped
+      if (this.polling && !this._pollTimer) {
+        const delay = this.rateLimiter.getDelay(this.pollFrequency);
+        this._pollTimer = setTimeout(() => this.poll(), delay);
+      }
+    }
   }
 
   _processLogs(rawLogs) {
