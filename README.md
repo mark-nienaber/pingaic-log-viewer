@@ -127,6 +127,9 @@ PingAIC Log Viewer running at http://localhost:3000
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+<img width="595" height="615" alt="Screenshot 2026-02-25 at 3 22 23 pm" src="https://github.com/user-attachments/assets/7c2988b7-7818-4892-8633-8e0e14747807" />
+
+
 ## Connecting to Your Tenant
 
 There are two ways to provide your tenant credentials:
@@ -147,6 +150,8 @@ There are two ways to provide your tenant credentials:
 > **Tip:** You can mix both approaches — pre-fill defaults in `.env` and override them in the UI as needed.
 
 Once connected, live log tailing begins automatically.
+
+<img width="1283" height="671" alt="Screenshot 2026-02-25 at 3 27 42 pm" src="https://github.com/user-attachments/assets/56665f6c-d856-416a-a504-c735f0168c13" />
 
 ### Saved Connections
 
@@ -184,6 +189,9 @@ Use the filter bar to narrow down logs:
 | **Transaction ID** | Filter by a specific transaction ID — hover any transaction ID in the log viewer to see a trace badge, then click to auto-filter |
 | **Noise Filter** | Dropdown with 14 categories of noisy loggers grouped by severity (High/Medium/Low/IDM). Toggle individual categories on/off. Defaults: High + Medium + IDM enabled, Low disabled |
 
+<img width="579" height="634" alt="Screenshot 2026-02-25 at 3 28 17 pm" src="https://github.com/user-attachments/assets/65c6d31e-3c46-493c-b2a9-2dd0e462e3c2" />
+
+
 ### Transaction Tracing
 
 Transaction IDs link related log entries across AM and IDM. To trace a transaction:
@@ -194,6 +202,9 @@ Transaction IDs link related log entries across AM and IDM. To trace a transacti
 4. Click the **×** button on the filter input to clear and return to the full log view
 
 This is especially useful for following authentication flows, OAuth token exchanges, or IDM sync operations that span multiple log entries.
+
+<img width="1241" height="475" alt="Screenshot 2026-02-25 at 3 31 16 pm" src="https://github.com/user-attachments/assets/3f2b311a-fd12-4284-8eec-58ea89b7e307" />
+
 
 ### Historical Search
 
@@ -207,6 +218,9 @@ Press **Ctrl+H** or click the clock icon to open the historical search panel:
 6. The status bar shows a **Historical** indicator (amber) when live tailing is paused
 
 > **Note:** The PingAIC API limits historical queries to 24-hour windows. For longer ranges, the tool automatically splits the request into sequential 24-hour chunks.
+> 
+<img width="384" height="447" alt="Screenshot 2026-02-25 at 3 31 46 pm" src="https://github.com/user-attachments/assets/7f697fed-b319-4a96-bfba-fd5e252ac23d" />
+
 
 ### Exporting Logs
 
@@ -220,6 +234,9 @@ Click the export icon in the toolbar to download logs:
 
 You can export either all logs in the buffer or only the currently filtered/visible logs.
 
+<img width="408" height="287" alt="Screenshot 2026-02-25 at 3 32 20 pm" src="https://github.com/user-attachments/assets/2b52a0eb-a4c2-4d22-986e-9ff2e227e04f" />
+
+
 ### Settings
 
 Click the gear icon to access settings:
@@ -231,6 +248,9 @@ Click the gear icon to access settings:
 | **Auto-scroll** | Automatically scroll to newest logs | On |
 | **Noise Categories** | View and toggle all 14 noise categories with expandable logger lists for each | — |
 | **Muted Loggers** | Manually mute individual loggers — you can also hover any logger name in the log viewer and click the mute icon to quickly silence it | — |
+
+<img width="323" height="882" alt="Screenshot 2026-02-25 at 3 32 43 pm" src="https://github.com/user-attachments/assets/71b16fed-65f8-4855-acb3-c4f81e6eb7e0" />
+
 
 ## Configuration Reference
 
@@ -262,7 +282,9 @@ Click the gear icon to access settings:
 | `idm-access` | IDM access events |
 | `idm-core` | Core IDM debug logs |
 
-## Testing
+<img width="316" height="447" alt="Screenshot 2026-02-25 at 3 33 11 pm" src="https://github.com/user-attachments/assets/bc812b28-21ef-4cbc-998a-17fca5aa1609" />
+
+## Testing - Really only useful for development of this app
 
 ### End-to-End Tests
 
