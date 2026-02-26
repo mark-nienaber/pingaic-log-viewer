@@ -211,12 +211,18 @@ class TailManager {
     // Event name (e.g. AM-NODE-LOGIN-COMPLETED, AM-ACCESS-OUTCOME)
     if (payload.eventName) parts.push(payload.eventName);
 
-    // Principal / who
+    // Result / status - show early so failures are immediately visible
+    if (payload.result) parts.push(payload.result);
+
+    // Principal / who - clean up LDAP DNs to just the username
     const principal = payload.principal || payload.userId || payload.runAs;
     if (principal) {
       const who = Array.isArray(principal) ? principal[0] : principal;
-      if (who) parts.push(who);
+      if (who) parts.push(this._cleanPrincipal(who));
     }
+
+    // Component context (OAuth, SAML2, Session, ID Repo, etc.)
+    if (payload.component) parts.push(payload.component);
 
     // Realm
     if (payload.realm && payload.realm !== '/') {
@@ -232,7 +238,7 @@ class TailManager {
         if (i.treeName) nodeParts.push(i.treeName);
         if (i.displayName) nodeParts.push(i.displayName);
         else if (i.nodeType) nodeParts.push(i.nodeType);
-        if (i.nodeOutcome) nodeParts.push('→ ' + i.nodeOutcome);
+        if (i.nodeOutcome) nodeParts.push('-> ' + i.nodeOutcome);
         if (i.authLevel && i.authLevel !== '0') nodeParts.push('level=' + i.authLevel);
         if (nodeParts.length > 0) parts.push(nodeParts.join(' > '));
       }
@@ -243,18 +249,24 @@ class TailManager {
       const req = payload.http.request;
       const httpMsg = (req.method || '') + ' ' + (req.path || '');
       parts.push(httpMsg);
-      if (payload.response && payload.response.statusCode) {
-        parts.push('→ ' + payload.response.statusCode);
+      if (payload.response) {
+        if (payload.response.statusCode) {
+          parts.push('-> ' + payload.response.statusCode);
+        } else if (payload.response.status) {
+          parts.push('-> ' + payload.response.status);
+        }
       }
     }
 
-    // IDM activity/sync — operation + object
+    // IDM activity/sync - operation + object + details
     if (payload.operation) parts.push(payload.operation);
     if (payload.objectId) parts.push(payload.objectId);
-
-    // Result / status
-    if (payload.result) parts.push('result=' + payload.result);
     if (payload.status && typeof payload.status === 'string') parts.push(payload.status);
+    if (payload.passwordChanged) parts.push('passwordChanged');
+    if (payload.changedFields && Array.isArray(payload.changedFields) && payload.changedFields.length > 0) {
+      parts.push('[' + payload.changedFields.slice(0, 5).join(', ') +
+        (payload.changedFields.length > 5 ? ', ...' : '') + ']');
+    }
 
     // Fallback to message if we have it as supplement
     if (parts.length === 0 && payload.message) {
@@ -262,6 +274,17 @@ class TailManager {
     }
 
     return parts.join(' | ').substring(0, 500);
+  }
+
+  _cleanPrincipal(dn) {
+    if (!dn) return dn;
+    // Extract username from LDAP DN format: id=mark.nienaber,ou=user,dc=openam,...
+    const idMatch = dn.match(/^id=([^,]+),/);
+    if (idMatch) return idMatch[1];
+    // Extract uid from uid=mark.nienaber,ou=...
+    const uidMatch = dn.match(/^uid=([^,]+),/);
+    if (uidMatch) return uidMatch[1];
+    return dn;
   }
 
   _send(data) {

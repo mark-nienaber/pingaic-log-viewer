@@ -182,13 +182,13 @@ async function group1_appApi() {
     assert(data.maxLogBuffer !== undefined, 'Missing maxLogBuffer');
   });
 
-  await test('GET /api/sources returns all 17 sources', async () => {
+  await test('GET /api/sources returns all 23 sources', async () => {
     const { status, data } = await appRequest('GET', '/api/sources');
     assert(status === 200, `Expected 200, got ${status}`);
     assert(Array.isArray(data), 'Expected array');
-    assert(data.length === 17, `Expected 17 sources, got ${data.length}`);
+    assert(data.length === 23, `Expected 23 sources, got ${data.length}`);
     const ids = data.map(s => s.id);
-    for (const expected of ['am-everything', 'am-authentication', 'idm-everything', 'idm-sync', 'ctsstore', 'userstore']) {
+    for (const expected of ['am-everything', 'am-authentication', 'idm-everything', 'idm-sync', 'idm-recon', 'environment-access', 'ws-everything', 'ws-activity', 'ctsstore', 'userstore']) {
       assert(ids.includes(expected), `Missing source: ${expected}`);
     }
     // Each source should have id and label
@@ -868,7 +868,16 @@ async function group5_noiseFilters() {
 async function group6_messageExtraction() {
   group('Group 6: Message Extraction & Log Processing');
 
-  // Re-implement _extractMessage to test it in isolation
+  // Re-implement _extractMessage to test it in isolation (mirrors tailManager.js)
+  function cleanPrincipal(dn) {
+    if (!dn) return dn;
+    const idMatch = dn.match(/^id=([^,]+),/);
+    if (idMatch) return idMatch[1];
+    const uidMatch = dn.match(/^uid=([^,]+),/);
+    if (uidMatch) return uidMatch[1];
+    return dn;
+  }
+
   function extractMessage(payload) {
     if (typeof payload === 'string') return payload.substring(0, 500);
     if (payload.message && !payload.entries && !payload.http) {
@@ -877,11 +886,13 @@ async function group6_messageExtraction() {
 
     const parts = [];
     if (payload.eventName) parts.push(payload.eventName);
+    if (payload.result) parts.push(payload.result);
     const principal = payload.principal || payload.userId || payload.runAs;
     if (principal) {
       const who = Array.isArray(principal) ? principal[0] : principal;
-      if (who) parts.push(who);
+      if (who) parts.push(cleanPrincipal(who));
     }
+    if (payload.component) parts.push(payload.component);
     if (payload.realm && payload.realm !== '/') parts.push(payload.realm);
     if (payload.entries && Array.isArray(payload.entries) && payload.entries.length > 0) {
       const entry = payload.entries[0];
@@ -891,7 +902,7 @@ async function group6_messageExtraction() {
         if (i.treeName) nodeParts.push(i.treeName);
         if (i.displayName) nodeParts.push(i.displayName);
         else if (i.nodeType) nodeParts.push(i.nodeType);
-        if (i.nodeOutcome) nodeParts.push('→ ' + i.nodeOutcome);
+        if (i.nodeOutcome) nodeParts.push('-> ' + i.nodeOutcome);
         if (i.authLevel && i.authLevel !== '0') nodeParts.push('level=' + i.authLevel);
         if (nodeParts.length > 0) parts.push(nodeParts.join(' > '));
       }
@@ -899,14 +910,19 @@ async function group6_messageExtraction() {
     if (payload.http && payload.http.request) {
       const req = payload.http.request;
       parts.push((req.method || '') + ' ' + (req.path || ''));
-      if (payload.response && payload.response.statusCode) {
-        parts.push('→ ' + payload.response.statusCode);
+      if (payload.response) {
+        if (payload.response.statusCode) parts.push('-> ' + payload.response.statusCode);
+        else if (payload.response.status) parts.push('-> ' + payload.response.status);
       }
     }
     if (payload.operation) parts.push(payload.operation);
     if (payload.objectId) parts.push(payload.objectId);
-    if (payload.result) parts.push('result=' + payload.result);
     if (payload.status && typeof payload.status === 'string') parts.push(payload.status);
+    if (payload.passwordChanged) parts.push('passwordChanged');
+    if (payload.changedFields && Array.isArray(payload.changedFields) && payload.changedFields.length > 0) {
+      parts.push('[' + payload.changedFields.slice(0, 5).join(', ') +
+        (payload.changedFields.length > 5 ? ', ...' : '') + ']');
+    }
     if (parts.length === 0 && payload.message) return String(payload.message).substring(0, 500);
     return parts.join(' | ').substring(0, 500);
   }
@@ -923,7 +939,7 @@ async function group6_messageExtraction() {
     assert(msg.includes('testuser1'), `Expected principal, got: ${msg}`);
     assert(msg.includes('/alpha'), `Expected realm, got: ${msg}`);
     assert(msg.includes('Login'), `Expected treeName, got: ${msg}`);
-    assert(msg.includes('→ true'), `Expected nodeOutcome, got: ${msg}`);
+    assert(msg.includes('-> true'), `Expected nodeOutcome, got: ${msg}`);
     log(`    ${C.dim}(${msg})${C.reset}`);
   });
 
@@ -935,7 +951,7 @@ async function group6_messageExtraction() {
     });
     assert(msg.includes('GET'), `Expected method, got: ${msg}`);
     assert(msg.includes('/am/json'), `Expected path, got: ${msg}`);
-    assert(msg.includes('→ 200'), `Expected status, got: ${msg}`);
+    assert(msg.includes('-> 200'), `Expected status, got: ${msg}`);
     log(`    ${C.dim}(${msg})${C.reset}`);
   });
 
@@ -949,7 +965,48 @@ async function group6_messageExtraction() {
     });
     assert(msg.includes('READ'), `Expected operation, got: ${msg}`);
     assert(msg.includes('managed/alpha_user'), `Expected objectId, got: ${msg}`);
-    assert(msg.includes('result=SUCCESS'), `Expected result, got: ${msg}`);
+    assert(msg.includes('SUCCESS'), `Expected result, got: ${msg}`);
+    log(`    ${C.dim}(${msg})${C.reset}`);
+  });
+
+  await test('extractMessage: cleans LDAP DN to username', () => {
+    const msg = extractMessage({
+      eventName: 'AM-LOGIN-COMPLETED',
+      principal: ['id=mark.nienaber,ou=user,dc=openam,dc=forgerock,dc=org'],
+      result: 'FAILED',
+      realm: '/alpha'
+    });
+    assert(msg.includes('mark.nienaber'), `Expected cleaned principal, got: ${msg}`);
+    assert(!msg.includes('ou=user'), `Expected DN to be cleaned, got: ${msg}`);
+    assert(msg.includes('FAILED'), `Expected result, got: ${msg}`);
+    log(`    ${C.dim}(${msg})${C.reset}`);
+  });
+
+  await test('extractMessage: IDM activity with changedFields', () => {
+    const msg = extractMessage({
+      eventName: 'activity',
+      operation: 'PATCH',
+      objectId: 'managed/alpha_user/abc-123',
+      userId: 'openidm-admin',
+      status: 'SUCCESS',
+      changedFields: ['givenName', 'sn', 'mail'],
+      passwordChanged: false
+    });
+    assert(msg.includes('PATCH'), `Expected operation, got: ${msg}`);
+    assert(msg.includes('[givenName, sn, mail]'), `Expected changedFields, got: ${msg}`);
+    log(`    ${C.dim}(${msg})${C.reset}`);
+  });
+
+  await test('extractMessage: shows component context', () => {
+    const msg = extractMessage({
+      eventName: 'AM-ACCESS-OUTCOME',
+      userId: 'demo',
+      component: 'OAuth2',
+      http: { request: { method: 'POST', path: '/oauth2/access_token' } },
+      response: { statusCode: 200 }
+    });
+    assert(msg.includes('OAuth2'), `Expected component, got: ${msg}`);
+    assert(msg.includes('demo'), `Expected userId, got: ${msg}`);
     log(`    ${C.dim}(${msg})${C.reset}`);
   });
 

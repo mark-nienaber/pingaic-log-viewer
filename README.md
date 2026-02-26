@@ -222,7 +222,7 @@ This is especially useful for following authentication flows, OAuth token exchan
 
 ### Historical Search
 
-Press **Ctrl+H** or click the clock icon to open the historical search panel:
+Click the clock icon to open the historical search panel:
 
 1. Select a quick time range (Last 15 min, 1 hour, 6 hours, 24 hours) or set custom start/end times
 2. Optionally filter by Transaction ID or add a custom query filter
@@ -364,13 +364,6 @@ aic-sentinel/
 - **Frontend:** Tailwind CSS + Alpine.js loaded via CDN - no build step required
 - **API Integration:** Uses the [PingOne AIC Monitoring API](https://docs.pingidentity.com/pingoneaic/tenants/audit-debug-logs-pull.html) with rate limit awareness (60 requests/minute)
 - **Only 3 production dependencies** - lightweight and easy to audit
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+H` | Toggle historical search panel |
-| `Escape` | Close any open panel or modal |
 
 ## Troubleshooting
 
