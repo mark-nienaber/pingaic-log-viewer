@@ -1089,6 +1089,156 @@ async function group6_messageExtraction() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+//  GROUP 7 — Sustained Polling Monitor (Regression Test)
+// ═════════════════════════════════════════════════════════════════════════════
+async function group7_sustainedPolling() {
+  group('Group 7: Sustained Polling Monitor');
+
+  const MIN_CYCLES = 5;
+  const POLL_FREQ_S = 8;
+  const TIMEOUT_MS = (MIN_CYCLES + 2) * POLL_FREQ_S * 1000;
+
+  let cycles = [];
+  let errors = [];
+
+  await test(`Collect ${MIN_CYCLES}+ poll cycles over ~${Math.round(TIMEOUT_MS / 1000)}s`, async () => {
+    const ws = new WebSocket(`ws://localhost:${APP_PORT}/ws/tail`);
+    cycles = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        ws.close();
+        reject(new Error(`Only received ${collected.length} cycles within ${TIMEOUT_MS / 1000}s (needed ${MIN_CYCLES})`));
+      }, TIMEOUT_MS);
+      const collected = [];
+
+      ws.on('open', () => {
+        ws.send(JSON.stringify({
+          type: 'connect', origin: TENANT, apiKey: API_KEY, apiSecret: API_SECRET
+        }));
+      });
+
+      ws.on('message', (raw) => {
+        const msg = JSON.parse(raw);
+        if (msg.type === 'connected') {
+          ws.send(JSON.stringify({
+            type: 'start_tail',
+            sources: ['am-everything', 'idm-everything'],
+            enabledNoiseCategories: [],
+            pollFrequency: POLL_FREQ_S
+          }));
+        } else if (msg.type === 'logs') {
+          collected.push({
+            receivedAt: Date.now(),
+            logCount: msg.logs.length,
+            resultCount: msg.resultCount,
+            rateLimit: msg.rateLimit,
+            pollStats: msg.pollStats || null,
+          });
+          log(`    ${C.dim}  cycle ${collected.length}: ${msg.logs.length} logs, resultCount=${msg.resultCount}, ` +
+            `rate=${msg.rateLimit?.remaining}/${msg.rateLimit?.limit}` +
+            (msg.pollStats ? `, duration=${msg.pollStats.durationMs}ms, pollCount=${msg.pollStats.pollCount}` : '') +
+            `${C.reset}`);
+          if (collected.length >= MIN_CYCLES) {
+            clearTimeout(timer);
+            ws.send(JSON.stringify({ type: 'stop_tail' }));
+            setTimeout(() => { ws.close(); resolve(collected); }, 500);
+          }
+        } else if (msg.type === 'error') {
+          errors.push(msg.error);
+          log(`    ${C.dim}  error: ${msg.error}${C.reset}`);
+        }
+      });
+
+      ws.on('error', (e) => { clearTimeout(timer); reject(e); });
+    });
+    assert(cycles.length >= MIN_CYCLES, `Expected ${MIN_CYCLES}+ cycles, got ${cycles.length}`);
+  });
+
+  await test(`Polling survived ${MIN_CYCLES}+ cycles (regression: poll loop did not die)`, async () => {
+    assert(cycles.length >= MIN_CYCLES,
+      `Poll loop died early: only ${cycles.length} cycles received (bug: _pollTimer not cleared)`);
+  });
+
+  await test('No error messages received during sustained polling', async () => {
+    assert(errors.length === 0,
+      `Received ${errors.length} error(s): ${errors.join('; ')}`);
+  });
+
+  await test('Rate limits tracked and present in every cycle', async () => {
+    for (let i = 0; i < cycles.length; i++) {
+      const c = cycles[i];
+      assert(c.rateLimit, `Cycle ${i + 1} missing rateLimit`);
+      assert(typeof c.rateLimit.limit === 'number' && c.rateLimit.limit > 0,
+        `Cycle ${i + 1} rateLimit.limit invalid: ${c.rateLimit.limit}`);
+      assert(typeof c.rateLimit.remaining === 'number',
+        `Cycle ${i + 1} rateLimit.remaining invalid: ${c.rateLimit.remaining}`);
+    }
+  });
+
+  await test('Cookie pagination advances (pollCount increments monotonically)', async () => {
+    if (cycles[0].pollStats) {
+      const counts = cycles.map(c => c.pollStats.pollCount);
+      for (let i = 1; i < counts.length; i++) {
+        assert(counts[i] > counts[i - 1],
+          `pollCount did not advance: cycle ${i} = ${counts[i - 1]}, cycle ${i + 1} = ${counts[i]}`);
+      }
+    } else {
+      for (let i = 0; i < cycles.length; i++) {
+        assert(cycles[i].resultCount !== undefined,
+          `Cycle ${i + 1} missing resultCount (cookie may not be advancing)`);
+      }
+    }
+  });
+
+  await test('Poll timing within expected range', async () => {
+    for (let i = 1; i < cycles.length; i++) {
+      const interval = cycles[i].receivedAt - cycles[i - 1].receivedAt;
+      const minExpected = (POLL_FREQ_S * 1000) * 0.5;
+      const maxExpected = (POLL_FREQ_S * 1000) * 3;
+      assert(interval >= minExpected && interval <= maxExpected,
+        `Interval between cycle ${i} and ${i + 1} was ${interval}ms ` +
+        `(expected ${minExpected}-${maxExpected}ms)`);
+    }
+  });
+
+  await test('pollStats present and valid (API call monitoring)', async () => {
+    if (!cycles[0]?.pollStats) {
+      log(`    ${C.dim}(pollStats not present - skipping)${C.reset}`);
+      return;
+    }
+    for (let i = 0; i < cycles.length; i++) {
+      const ps = cycles[i].pollStats;
+      assert(ps.pollCount > 0, `Cycle ${i + 1} pollCount should be > 0`);
+      assert(typeof ps.durationMs === 'number' && ps.durationMs >= 0,
+        `Cycle ${i + 1} durationMs invalid: ${ps.durationMs}`);
+      assert(typeof ps.avgDurationMs === 'number' && ps.avgDurationMs >= 0,
+        `Cycle ${i + 1} avgDurationMs invalid: ${ps.avgDurationMs}`);
+      assert(typeof ps.consecutiveEmpties === 'number',
+        `Cycle ${i + 1} consecutiveEmpties invalid`);
+      assert(typeof ps.errors === 'number',
+        `Cycle ${i + 1} errors count invalid`);
+    }
+    const durations = cycles.map(c => c.pollStats.durationMs);
+    const avg = Math.round(durations.reduce((a, b) => a + b, 0) / durations.length);
+    log(`    ${C.dim}(API call durations: min=${Math.min(...durations)}ms, avg=${avg}ms, max=${Math.max(...durations)}ms)${C.reset}`);
+  });
+
+  // Summary
+  log(`\n  ${C.dim}Sustained polling summary:${C.reset}`);
+  log(`  ${C.dim}  Cycles completed: ${cycles.length}${C.reset}`);
+  log(`  ${C.dim}  Errors received:  ${errors.length}${C.reset}`);
+  if (cycles.length > 0) {
+    const totalLogs = cycles.reduce((s, c) => s + c.logCount, 0);
+    const elapsed = ((cycles[cycles.length - 1].receivedAt - cycles[0].receivedAt) / 1000).toFixed(1);
+    log(`  ${C.dim}  Total logs:       ${totalLogs}${C.reset}`);
+    log(`  ${C.dim}  Elapsed time:     ${elapsed}s${C.reset}`);
+    if (cycles[0].pollStats) {
+      const durations = cycles.map(c => c.pollStats.durationMs);
+      log(`  ${C.dim}  API latency:      ${Math.min(...durations)}-${Math.max(...durations)}ms (avg ${Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)}ms)${C.reset}`);
+    }
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 //  MAIN
 // ═════════════════════════════════════════════════════════════════════════════
 async function main() {
@@ -1108,6 +1258,7 @@ async function main() {
   await group4_websocket();
   await group5_noiseFilters();
   await group6_messageExtraction();
+  await group7_sustainedPolling();
 
   // ─── Summary ────────────────────────────────────────────────────────────
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);

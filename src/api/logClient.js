@@ -37,6 +37,7 @@ class LogClient {
 
   _request(path, signal) {
     return new Promise((resolve, reject) => {
+      const startTime = Date.now();
       let settled = false;
       const settle = (fn, value) => {
         if (!settled) { settled = true; fn(value); }
@@ -97,7 +98,8 @@ class LogClient {
               statusCode: 429,
               retryAfter,
               data: parsed,
-              rateLimit: rateLimitHeaders
+              rateLimit: rateLimitHeaders,
+              durationMs: Date.now() - startTime
             });
             return;
           }
@@ -106,12 +108,13 @@ class LogClient {
             settle(reject, {
               statusCode: res.statusCode,
               data: parsed,
-              rateLimit: rateLimitHeaders
+              rateLimit: rateLimitHeaders,
+              durationMs: Date.now() - startTime
             });
             return;
           }
 
-          settle(resolve, { data: parsed, rateLimit: rateLimitHeaders, statusCode: res.statusCode });
+          settle(resolve, { data: parsed, rateLimit: rateLimitHeaders, statusCode: res.statusCode, durationMs: Date.now() - startTime });
         });
       });
 

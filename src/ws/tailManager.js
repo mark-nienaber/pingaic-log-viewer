@@ -14,6 +14,7 @@ class TailManager {
     this._noisePrefixes = [];
     this._pollTimer = null;
     this._abortController = null;
+    this._stats = { pollCount: 0, consecutiveEmpties: 0, errors: 0, lastDurationMs: 0, totalDurationMs: 0 };
 
     // Index categories for quick lookup
     this._categoryMap = new Map();
@@ -128,6 +129,9 @@ class TailManager {
       const result = await this.logClient.tail(this.sources, this.cookie, this._abortController.signal);
       this._abortController = null;
       this.rateLimiter.update(result.rateLimit);
+      this._stats.pollCount++;
+      this._stats.lastDurationMs = result.durationMs || 0;
+      this._stats.totalDurationMs += result.durationMs || 0;
 
       if (result.data.pagedResultsCookie) {
         this.cookie = result.data.pagedResultsCookie;
@@ -135,16 +139,30 @@ class TailManager {
 
       const logs = this._processLogs(result.data.result || []);
 
+      if (logs.length === 0 && (result.data.resultCount || 0) === 0) {
+        this._stats.consecutiveEmpties++;
+      } else {
+        this._stats.consecutiveEmpties = 0;
+      }
+
       this._send({
         type: 'logs',
         logs,
         rateLimit: this.rateLimiter.getStatus(),
-        resultCount: result.data.resultCount
+        resultCount: result.data.resultCount,
+        pollStats: {
+          pollCount: this._stats.pollCount,
+          durationMs: this._stats.lastDurationMs,
+          avgDurationMs: Math.round(this._stats.totalDurationMs / this._stats.pollCount),
+          consecutiveEmpties: this._stats.consecutiveEmpties,
+          errors: this._stats.errors,
+        }
       });
 
     } catch (e) {
       // Don't report errors for aborted requests (normal on stop/disconnect)
       if (e.error === 'aborted' || !this.polling) return;
+      this._stats.errors++;
 
       // Handle 429 rate limiting with explicit backoff
       if (e.statusCode === 429) {
