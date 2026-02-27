@@ -120,6 +120,7 @@ class TailManager {
   }
 
   async poll() {
+    this._pollTimer = null;
     if (!this.polling || this.ws.readyState !== 1) return;
 
     try {
