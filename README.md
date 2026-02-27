@@ -7,7 +7,7 @@ A web-based log viewer for PingOne Advanced Identity Cloud (AIC) with live taili
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)
 ![Express](https://img.shields.io/badge/Express-4.x-lightgrey)
-![License](https://img.shields.io/badge/License-MIT-blue)
+![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial-blue)
 
 ## Overview
 
@@ -278,16 +278,29 @@ Click the gear icon to access settings:
 
 | Source | Description |
 |--------|-------------|
-| `am-everything` | All AM logs combined |
-| `am-authentication` | Authentication events |
-| `am-access` | Access audit logs |
-| `am-core` | Core AM debug logs |
-| `am-config` | Configuration change logs |
-| `idm-everything` | All IDM logs combined |
-| `idm-sync` | Synchronization operations |
-| `idm-activity` | Identity object changes |
-| `idm-access` | IDM access events |
-| `idm-core` | Core IDM debug logs |
+| `am-everything` | All AM log sources combined |
+| `am-access` | AM access audit logs |
+| `am-activity` | AM activity audit logs |
+| `am-authentication` | AM authentication events |
+| `am-config` | AM configuration changes |
+| `am-core` | AM core debug logs |
+| `idm-everything` | All IDM log sources combined |
+| `idm-access` | IDM access audit logs |
+| `idm-activity` | IDM activity audit logs |
+| `idm-authentication` | IDM authentication events |
+| `idm-config` | IDM configuration changes |
+| `idm-core` | IDM core debug logs |
+| `idm-recon` | IDM reconciliation events |
+| `idm-sync` | IDM automatic sync changes |
+| `environment-access` | Environment audit logs (ESV changes, promotions) |
+| `ws-everything` | All WS-Federation log sources combined |
+| `ws-activity` | WS-Federation authentication events |
+| `ws-config` | WS-Federation configuration changes |
+| `ws-core` | WS-Federation core debug logs |
+| `ctsstore` | Core Token Service store logs |
+| `ctsstore-access` | CTS access logs |
+| `userstore` | User store directory logs |
+| `userstore-access` | User store access logs |
 
 
 
@@ -391,4 +404,4 @@ The AIC Monitoring API allows 60 requests per minute. The status bar shows curre
 
 ## License
 
-MIT
+[PolyForm Noncommercial 1.0.0](LICENSE) - free for personal, educational, and non-commercial use. For commercial licensing, contact the author.
